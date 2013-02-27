@@ -1,0 +1,102 @@
+;;; API (super classes and generic functions) for interacting with browsers, tabs, stacks, etc.
+
+(require 'cl)
+(require 'eieio)
+
+(defclass jss-generic-browser ()
+  ())
+
+(defgeneric jss-browser-get-tabs (browser)
+  "Refreshes the list of availale tabs.
+
+Since we store references to tab objects in various buffers it is
+important that this method modify, but no recreate, any already
+existing tab objects.")
+
+(defgeneric jss-browser-description (browser))
+
+(defgeneric jss-browser-tabs (browser))
+
+(defgeneric jss-browser-find-tab (browser tab-id))
+
+(defgeneric jss-browser-register-tab (browser tab))
+
+(defclass jss-generic-tab ()
+  ((browser :initarg :browser :accessor jss-tab-browser)
+   (console :initform nil :accessor jss-tab-console)
+   (io :initform (make-hash-table :test 'equal)
+       :accessor jss-tab-io)))
+
+(make-variable-buffer-local
+ (defvar jss-current-tab-instance nil))
+
+(defun jss-current-tab ()
+  (or jss-current-tab-instance
+      (if (jss-current-console)
+          (jss-console-tab (jss-current-console))
+        nil)))
+
+(defgeneric jss-tab-debugger-p (tab))
+
+(defgeneric jss-tab-title (tab))
+
+(defgeneric jss-tab-url (tab))
+
+(defgeneric jss-tab-connected-p (tab))
+
+(defgeneric jss-tab-connect (tab))
+
+(defgeneric jss-tab-disconnect (tab))
+
+(defgeneric jss-tab-make-console (tab &rest initargs))
+
+(defclass jss-generic-console ()
+  ((tab :initarg :tab
+        :initform nil
+        :accessor jss-console-tab)))
+
+(make-variable-buffer-local
+ (defvar jss-current-console-instance nil))
+
+(defun jss-current-console ()
+  jss-current-console-instance)
+
+(defgeneric jss-console-buffer (console))
+
+(defmethod jss-console-buffer ((console jss-generic-console))
+  (get-buffer-create
+   (format "*JSS-Console/%s*" (jss-tab-id (jss-console-tab console)))))
+
+(defgeneric jss-console-insert-io (console io))
+
+(defclass jss-generic-io ()
+  ((start-time :accessor jss-io-start :initarg :start-time)
+   (url :accessor jss-io-url :initarg :url)
+   (response-data :accessor jss-io-response-data :initarg :response-data)
+
+   (lifecycle :initform '() :accessor jss-io-lifecycle :initarg :lifecycle)
+
+   (buffer :initform nil :accessor jss-io-buffer)))
+
+(defgeneric jss-io-uid (io))
+
+(defgeneric jss-io-request-headers (io))
+
+(defgeneric jss-io-response-headers (io))
+
+(defgeneric jss-tab-get-io (tab io-id))
+
+(defmethod jss-tab-get-io ((tab jss-generic-tab) io-id)
+  (gethash io-id (jss-tab-io tab)))
+
+(defgeneric jss-tab-register-io (tab io-id io-object))
+
+(defmethod jss-tab-register-io ((tab jss-generic-tab) io-id io-object)
+  (setf (gethash io-id (jss-tab-io tab)) io-object))
+
+(defmethod jss-io-buffer-name ((io jss-generic-io))
+  (or (slot-value io 'buffer)
+      (setf (slot-value io 'buffer) (get-buffer-create (format "*JSS IO %s*" (jss-io-uid io))))))
+
+(provide 'jss-browser-api)
+

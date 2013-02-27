@@ -1,0 +1,92 @@
+(require 'cl)
+(require 'eieio)
+(require 'jss-browser-api)
+
+(defvar jss-browser-mode-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map (make-composed-keymap button-buffer-map jss-super-mode-map))
+    (define-key map (kbd "g") 'jss-browser-mode-refresh)
+    map))
+
+(define-derived-mode jss-browser-mode jss-super-mode "JSS Browser"
+  "Major mode for listing information about a browser, mainly a list of available tabs.
+
+After connecting to a specific browser instance, via
+`jss-connect`, this mode presents a list of open tabs and the
+ability to attach a debugger, in the form of a set of
+buffers (one for the console, one for the network activity,
+etc.) to the choosen tab."
+  t)
+
+(make-variable-buffer-local
+ (defvar jss-current-browser-instance nil))
+
+(defun jss-current-browser ()
+  jss-current-browser-instance)
+
+(defun jss-browser-insert-header ()
+  (widen)
+  (delete-region (point-min) (point-max))
+  (insert (jss-browser-description (jss-current-browser)) "\n\n"))
+
+(defun jss-browser-mode-refresh ()
+  (interactive)
+  (setf buffer-read-only t)
+  (let ((inhibit-read-only t))
+    (jss-browser-insert-header)
+    (insert "[ Connecting... ]"))
+  (deferred:then
+    (jss-browser-get-tabs (jss-current-browser))
+    (lambda (browser)
+      (let ((inhibit-read-only t))
+        (jss-browser-insert-header)
+        (dolist (tab (jss-browser-tabs browser))
+          (insert (format "%s - %s\n" (jss-tab-title tab) (jss-tab-url tab)))
+          (when (jss-tab-debugger-p tab)
+            (insert "  ")
+            (jss-insert-button (if (jss-tab-console tab)
+                                   "[ goto console ]"
+                                 "[ open console ]")
+                               'jss-tab-goto-console
+                               'jss-tab-id (jss-tab-id tab))
+            (insert "\n")))
+        (goto-char (point-min))
+        (forward-button 1)))
+    (lambda (message)
+      (let ((inhibit-read-only t))
+        (jss-browser-insert-header)
+        (insert "Connection error: " message)))))
+
+(defstruct jss-browser
+  connector
+  label)
+
+(defcustom jss-browsers
+  (list (make-jss-browser :connector 'jss-chrome-connect
+                          :label "Google Chrome")
+        (make-jss-browser :connector 'jss-firefox-connect
+                          :label "Firefox"))
+  "List of known browsers"
+  :group 'jss)
+
+(defcustom jss-browser-default-host "127.0.0.1"
+  "Default port for the browser's debugging api."
+  :group 'jss)
+
+(defvar jss-connect/select-browser-history '())
+
+(defun jss-connect (browser-label)
+  (interactive (list (let ((completion-ignore-case t))
+                       (completing-read "Browser: "
+                                        (mapcar (lambda (browser-spec)
+                                                  (cons (jss-browser-label browser-spec) browser-spec))
+                                                jss-browsers)
+                                        nil
+                                        t
+                                        (first jss-connect/select-browser-history)
+                                        'jss-connect/select-browser-history))))
+  (let ((browser-spec (find browser-label jss-browsers :key 'jss-browser-label :test 'string=)))
+    (assert browser-spec nil "Unable to find browser named %s" browser-spec)
+    (call-interactively (jss-browser-connector browser-spec))))
+
+(provide 'jss-browser-mode)

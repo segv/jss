@@ -1,0 +1,16 @@
+
+(defun jss-console-switch-to-io-inspector (io)
+  (interactive (list (jss-tab-get-io (jss-current-tab) (get-text-property (point) 'jss-io-id))))
+  (if (jss-io-buffer io)
+      (switch-to-buffer-other-window (jss-io-buffer io))
+    (switch-to-buffer-other-window (get-buffer-create (jss-io-buffer-name io)))
+    (insert "Request Headers:\n")
+    (dolist (header (jss-io-request-headers io))
+      (insert (format "%s:%s\n" (car header) (cdr header))))
+    (insert "Response Headers:\n")
+    (dolist (header (jss-io-response-headers io))
+      (insert (format "%s:%s\n" (car header) (cdr header))))
+    (insert "\n\n")
+    (insert (format "%s" (jss-chrome-io-properties io)))))
+
+(provide 'jss-network-inspector)
