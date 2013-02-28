@@ -86,7 +86,8 @@
    (virtual-id :initform nil)
    (websocket :initform nil)
    (request-counter :initform 0)
-   (requests :initform (make-hash-table))))
+   (requests :initform (make-hash-table :test 'equal))
+   (scripts :initform (make-hash-table :test 'equal)))) 
 
 (defmethod jss-tab-debugger-p ((tab jss-chrome-tab))
   (slot-value tab 'debugger-url))
@@ -123,6 +124,14 @@
 
 (defmethod jss-chrome-tab-debugger-url ((tab jss-chrome-tab))
   (cdr (assoc 'webSocketDebuggerUrl (slot-value tab 'json-data))))
+
+(defmethod jss-tab-get-script ((tab jss-chrome-tab) scriptId)
+  (gethash scriptId (slot-value tab 'scripts)))
+
+(defmethod jss-tab-set-script ((tab jss-chrome-tab) scriptId script)
+  (setf (gethash scriptId (slot-value tab 'scripts)) script))
+
+(defsetf jss-tab-get-script jss-tab-set-script)
 
 (defmethod jss-tab-connected-p ((tab jss-chrome-tab))
   (slot-value tab 'websocket))
@@ -178,9 +187,9 @@
     (jss-chrome-send-request tab
                              (list (format "%s.enable" domain))
                              (lambda (response)
-                               (jss-console-format-message console "// INFO // %s enabled." domain))
+                               (jss-console-format-message console "// debug // %s enabled." domain))
                              (lambda (response)
-                               (jss-console-format-message console "// INFO // Could not enable %s: %s" domain response)))))
+                               (jss-console-format-message console "// debug // Could not enable %s: %s" domain response)))))
 
 (defmethod jss-chrome-tab-websocket/on-message ((tab jss-chrome-tab) websocket frame)
   (jss-log-event (list :websocket
@@ -230,6 +239,35 @@
                            (console (jss-tab-console tab)))
                ,@body)))))
 
+(defclass jss-chrome-debugger (jss-generic-debugger)
+  ((callFrames :initarg :callFrames :reader jss-debugger-stack-frames)
+   (reason :initarg :reason)
+   (data :initarg :data)))
+
+(defmethod jss-debugger-message ((d jss-chrome-debugger))
+  (format "%s %s" (slot-value d 'reason) (slot-value d 'data)))
+
+(defclass jss-chrome-stack-frame (jss-generic-stack-frame)
+  ((properties :initarg :properties)
+   (debugger)))
+
+(defmethod jss-frame-function-name ((frame jss-chrome-stack-frame))
+  (cdr (assoc 'functionName (slot-value frame 'properties))))
+
+(defmethod jss-frame-source-url ((frame jss-chrome-stack-frame))
+  (let* ((loc (cdr (assoc 'location (slot-value frame 'properties))))
+         (scriptId (cdr (assoc 'scriptId loc)))
+         (script (jss-tab-get-script (jss-debugger-tab (slot-value frame 'debugger)) scriptId)))
+    (if script
+        (cdr (assoc 'url script))
+        scriptId)))
+
+(defmethod jss-frame-source-position ((frame jss-chrome-stack-frame))
+  (let* ((loc (cdr (assoc 'location (slot-value frame 'properties))))
+         (lineNumber (cdr (assoc 'lineNumber loc)))
+         (columnNumber (cdr (assoc 'columnNumber loc))))
+    (format "%s:%s" lineNumber columnNumber)))
+
 (define-jss-chrome-notification-handler "Debugger.breakpointResolved" (breakpointId location)
   t)
 
@@ -237,7 +275,18 @@
   t)
 
 (define-jss-chrome-notification-handler "Debugger.paused" (callFrames reason data)
-  (jss-console-format-message (jss-tab-console tab) "// ERROR // %s/%s" reason data))
+  (jss-console-format-message console "// ERROR // %s" reason)
+  (let ((jss-debugger (make-instance 'jss-chrome-debugger
+                                        :callFrames (loop
+                                                     for frame across callFrames
+                                                     collect (make-instance 'jss-chrome-stack-frame
+                                                                            :properties frame))
+                                        :reason reason
+                                        :data data
+                                        :tab tab)))
+    (dolist (frame (jss-debugger-stack-frames jss-debugger))
+      (setf (slot-value frame 'debugger) jss-debugger))
+    (jss-tab-open-debugger tab jss-debugger)))
 
 (define-jss-chrome-notification-handler "Debugger.resumed" ()
   t)
@@ -245,7 +294,8 @@
 (define-jss-chrome-notification-handler "Debugger.scriptFailedToParse" (url scriptSource startLine errorLine errorMessage)
   t)
 
-(define-jss-chrome-notification-handler "Debugger.scriptParsed" (url scriptSource startLine startColumn endLine endColumn isContentScript sourceMapURL)
+(define-jss-chrome-notification-handler "Debugger.scriptParsed" (url scriptId scriptSource startLine startColumn endLine endColumn isContentScript sourceMapURL)
+  (setf (jss-tab-get-script tab scriptId) params)
   t)
 
 (defmethod jss-chrome-tab-websocket/on-open ((tab jss-chrome-tab) websocket)
@@ -309,8 +359,8 @@
                                   (t
                                    (error "Unknown result type %s" type))))))))
 
-(define-jss-chrome-notification-handler "Console.messageAdded" ()
-  (jss-console-format-message console "// Console.messageAdded // %s" message))
+(define-jss-chrome-notification-handler "Console.messageAdded" (message)
+  (jss-console-format-message console "// %s // %s" (cdr (assoc 'type message)) (cdr (assoc 'text message))))
 
 (define-jss-chrome-notification-handler "Console.messagesCleared" ()
   t)
@@ -356,8 +406,15 @@
                                                 :lifecycle (list (list :sent timestamp))))))
     (jss-console-insert-request console io)))
 
+(defmacro with-existing-io (io-id &rest body)
+  `(let ((io (jss-tab-get-io tab ,io-id)))
+     (if io
+         (progn ,@body)
+       (warn "IO %s does not exist." ,io-id))))
+(put 'with-existing-io 'lisp-indent-function 1)
+
 (define-jss-chrome-notification-handler "Network.dataReceived" (requestId timestamp dataLength encodedDataLength)
-  (let ((io (jss-tab-get-io tab requestId)))
+  (with-existing-io requestId
     (push (list :data-received timestamp
                 :data-length dataLength
                 :encoded-data-length encodedDataLength)
@@ -365,7 +422,7 @@
     (jss-console-update-request-message console io)))
 
 (define-jss-chrome-notification-handler "Network.loadingFailed" (requestId timestamp errorText canceled)
-  (let ((io (jss-tab-get-io tab requestId)))
+  (with-existing-io requestId
     (push (list :loading-failed timestamp
                 :error-text errorText
                 :canceled canceled)
@@ -373,19 +430,19 @@
     (jss-console-update-request-message console io)))
 
 (define-jss-chrome-notification-handler "Network.loadingFinished" (requestId timestamp)
-  (let ((io (jss-tab-get-io tab requestId)))
+  (with-existing-io requestId
     (push (list :loading-finished timestamp)
           (jss-io-lifecycle io))
    (jss-console-update-request-message console io)))
 
 (define-jss-chrome-notification-handler "Network.requestServedFromCache" (requestId)
-  (let ((io (jss-tab-get-io tab requestId)))
+  (with-existing-io requestId
     (push (list :served-from-cache nil)
           (jss-io-lifecycle io))
     (jss-console-update-request-message console io)))
 
 (define-jss-chrome-notification-handler "Network.requestServedFromMemoryCache" (requestId loaderId documentURL timestamp initiator resource)
-  (let ((io (jss-tab-get-io tab requestId)))
+  (with-existing-io requestId
     (push (list :served-from-memory-cache timestamp
                 :loader-id loaderId
                 :document-url documentURL
@@ -395,7 +452,7 @@
     (jss-console-update-request-message console io)))
 
 (define-jss-chrome-notification-handler "Network.responseReceived" (requestId loaderId timestamp type response)
-  (let ((io (jss-tab-get-io tab requestId)))
+  (with-existing-io requestId
     (push (list :response-received timestamp
                 :loader-id loaderId
                 :type type

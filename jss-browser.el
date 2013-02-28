@@ -44,11 +44,11 @@ etc.) to the choosen tab."
           (insert (format "%s - %s\n" (jss-tab-title tab) (jss-tab-url tab)))
           (when (jss-tab-debugger-p tab)
             (insert "  ")
-            (jss-insert-button (if (jss-tab-console tab)
-                                   "[ goto console ]"
-                                 "[ open console ]")
-                               'jss-tab-goto-console
-                               'jss-tab-id (jss-tab-id tab))
+            (insert-text-button (if (jss-tab-console tab)
+                                    "[ goto console ]"
+                                  "[ open console ]")
+                                'action (lambda (button) (call-interactively 'jss-tab-goto-console))
+                                'jss-tab-id (jss-tab-id tab))
             (insert "\n")))
         (goto-char (point-min))
         (forward-button 1)))
@@ -89,4 +89,4 @@ etc.) to the choosen tab."
     (assert browser-spec nil "Unable to find browser named %s" browser-spec)
     (call-interactively (jss-browser-connector browser-spec))))
 
-(provide 'jss-browser-mode)
+(provide 'jss-browser)

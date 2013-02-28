@@ -57,13 +57,13 @@
   (unless (jss-current-console)
     (error "No current console object. Can't open console here."))
   (unless (jss-tab-connected-p (jss-console-tab (jss-current-console)))
-    (jss-console-insert-message (jss-current-console) "// INFO // Connecting...")
+    (jss-console-insert-message (jss-current-console) "// info // Connecting...")
     (lexical-let ((buf (current-buffer)))
       (deferred:then
         (jss-tab-connect (jss-console-tab (jss-current-console)))
         (lambda (tab)
           (with-current-buffer buf
-            (jss-console-insert-message (jss-current-console) "// INFO // Connected.")))))))
+            (jss-console-insert-message (jss-current-console) "// info // Connected.")))))))
 
 (defun jss-have-next-property-block (property-name)
   (or (get-text-property (point) property-name)
@@ -170,8 +170,6 @@
 (defun jss-console-send-or-newline ()
   (interactive)
   (cond
-   ((get-text-property (point) 'jss-default-action)
-    (call-interactively (get-text-property (point) 'jss-default-action)))
    ((get-text-property (point) 'read-only)
     t)
    (t
@@ -230,7 +228,7 @@
       (jss-console-before-last-prompt)
       (let ((start (point))
             (inhibit-read-only t))
-        (insert "// INFO // ")
+        (insert "// log // ")
         (let ((button-start (point)))
           (insert (jss-io-uid io))
           (make-text-button button-start (point)
@@ -252,4 +250,4 @@
     (jss-console-delete-property-block 'jss-io-id (jss-io-uid io))
     (jss-console-insert-io-line console io)))
 
-(provide 'jss-console-mode)
+(provide 'jss-console)

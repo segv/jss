@@ -50,6 +50,8 @@ existing tab objects.")
 
 (defgeneric jss-tab-make-console (tab &rest initargs))
 
+(defgeneric jss-tab-open-debugger (tab debugger))
+
 (defclass jss-generic-console ()
   ((tab :initarg :tab
         :initform nil
@@ -100,6 +102,32 @@ existing tab objects.")
 (defmethod jss-io-buffer-name ((io jss-generic-io))
   (or (slot-value io 'buffer)
       (setf (slot-value io 'buffer) (get-buffer-create (format "*JSS IO %s*" (jss-io-uid io))))))
+
+(defclass jss-generic-debugger ()
+  ((buffer :accessor jss-debugger-buffer)
+   (tab    :accessor jss-debugger-tab :initarg :tab)))
+
+(defgeneric jss-debugger-stack-frames (debugger))
+
+(defgeneric jss-debugger-message (debugger))
+
+;;; nb: do NOT name the debugger parameter debugger. it messes with emacs in strange ways.
+(defmethod jss-tab-open-debugger ((tab jss-generic-tab) dbg)
+  (setf (jss-debugger-buffer dbg) (get-buffer-create (generate-new-buffer-name "*JSS Debugger*"))
+        (jss-debugger-tab dbg) tab)
+  (with-current-buffer (jss-debugger-buffer dbg)
+    (let ((jss-debugger dbg))
+      (jss-debugger-mode))
+    (switch-to-buffer-other-window (current-buffer))))
+
+(defclass jss-generic-stack-frame ()
+  ())
+
+(defgeneric jss-frame-function-name (frame))
+
+(defgeneric jss-frame-source-url (frame))
+
+(defgeneric jss-frame-source-position (frame))
 
 (provide 'jss-browser-api)
 
