@@ -6,6 +6,7 @@
   (add-hook 'kill-buffer-hook 'jss-console-kill)
   ;; assume caller bind jss-console
   (setf jss-current-console-instance jss-console)
+  
   (jss-console-insert-prompt)
   (jss-console-ensure-connection)
   t)
@@ -13,6 +14,8 @@
 (define-key jss-console-mode-map (kbd "C-c C-r") 'jss-console-ensure-connection)
 (define-key jss-console-mode-map (kbd "RET") 'jss-console-send-or-newline)
 (define-key jss-console-mode-map (kbd "C-a") 'jss-console-beginning-of-line)
+(define-key jss-console-mode-map (kbd "C-c C-o") 'jss-console-clear-buffer)
+(define-key jss-console-mode-map (kbd "C-c C-r") 'jss-console-reload-page)
 
 (defun jss-current-tab ()
   (or jss-current-tab-instance
@@ -59,7 +62,7 @@
   (unless (jss-tab-connected-p (jss-console-tab (jss-current-console)))
     (jss-console-insert-message (jss-current-console) "// info // Connecting...")
     (lexical-let ((buf (current-buffer)))
-      (deferred:then
+      (jss-deferred-then
         (jss-tab-connect (jss-console-tab (jss-current-console)))
         (lambda (tab)
           (with-current-buffer buf
@@ -191,7 +194,7 @@
               (add-text-properties (point-min) (point-max) '(read-only t rear-nonsticky t))
               (jss-console-insert-prompt)
               
-              (deferred:then
+              (jss-deferred-then
                 (jss-console-evaluate console input)
                 (lambda (response)
                   (jss-console-insert-message console response)))))))))))
@@ -222,21 +225,35 @@
               (setf properties (list* 'read-only t properties)))
             (add-text-properties start (point) properties)))))))
 
+(defun jss-limit-string-length (string max-length)
+  (if (< max-length (length string))
+      (format "%s...[snip]...%s"
+              (substring string 0 (/ max-length 2))
+              (substring string (- (length string) (/ max-length 2)) (length string)))
+      string))
+
 (defmethod jss-console-insert-io-line ((console jss-generic-console) io)
   (with-current-buffer (jss-console-buffer console)
     (save-excursion
       (jss-console-before-last-prompt)
       (let ((start (point))
             (inhibit-read-only t))
-        (insert "// log // ")
+        (insert "// log // "
+                (ecase (first (first (jss-io-lifecycle io)))
+                  (:sent "Requested")
+                  (:loading-finished "Loaded")
+                  (:data-received "Data for")
+                  (:loading-failed "Failed")
+                  (:served-from-cache "From cache")
+                  (:served-from-memory-cache "From memory cache")
+                  (:response-received "Got response"))
+                " ")
         (let ((button-start (point)))
-          (insert (jss-io-uid io))
+          (insert (jss-limit-string-length (jss-io-request-url io) 80))
           (make-text-button button-start (point)
                             'action (lambda (button)
                                       (call-interactively 'jss-console-switch-to-io-inspector))))
-        (insert (format ": %s %s"
-                        (jss-io-request-url io)
-                        (first (first (jss-io-lifecycle io)))))
+        
         (insert "\n")
         (add-text-properties start (point)
                              (list 'read-only t
@@ -249,5 +266,33 @@
   (with-current-buffer (jss-console-buffer console)
     (jss-console-delete-property-block 'jss-io-id (jss-io-uid io))
     (jss-console-insert-io-line console io)))
+
+(defun jss-console-clear-buffer ()
+  (interactive)
+  (let ((console (jss-current-console)))
+    (jss-console-clear console)
+    (dolist (buf (buffer-list))
+      (with-current-buffer buf
+        (when (and (eql 'jss-network-inspector-mode major-mode)
+                   (jss-current-io)
+                   (eql (jss-console-tab console) (jss-io-tab (jss-current-io))))
+          (kill-buffer buf))))
+    
+    (jss-console-before-last-prompt)
+    (let ((inhibit-read-only t))
+      (delete-region (point-min) (point)))
+    
+    (jss-console-after-last-prompt)
+    (unless (eobp)
+      (forward-char 1))))
+
+(defun jss-console-reload-page ()
+  (interactive)
+  (lexical-let ((tab (jss-current-tab)))
+    (jss-deferred-then
+      (jss-tab-reload tab)
+      (lambda (response)
+        (jss-console-format-message (jss-tab-console tab) "Triggered page reload.")
+        response))))
 
 (provide 'jss-console)

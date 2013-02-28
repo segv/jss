@@ -63,6 +63,8 @@ existing tab objects.")
 (defun jss-current-console ()
   jss-current-console-instance)
 
+(defgeneric jss-console-clear (console))
+
 (defgeneric jss-console-buffer (console))
 
 (defmethod jss-console-buffer ((console jss-generic-console))
@@ -72,7 +74,8 @@ existing tab objects.")
 (defgeneric jss-console-insert-io (console io))
 
 (defclass jss-generic-io ()
-  ((start-time :accessor jss-io-start :initarg :start-time)
+  ((tab :accessor jss-io-tab :initform nil)
+   (start-time :accessor jss-io-start :initarg :start-time)
    (lifecycle :initform '() :accessor jss-io-lifecycle :initarg :lifecycle)
    (buffer :initform nil :accessor jss-io-buffer)))
 
@@ -97,7 +100,8 @@ existing tab objects.")
 (defgeneric jss-tab-register-io (tab io-id io-object))
 
 (defmethod jss-tab-register-io ((tab jss-generic-tab) io-id io-object)
-  (setf (gethash io-id (jss-tab-io tab)) io-object))
+  (setf (jss-io-tab io-object) tab
+        (gethash io-id (jss-tab-io tab)) io-object))
 
 (defmethod jss-io-buffer-name ((io jss-generic-io))
   (or (slot-value io 'buffer)

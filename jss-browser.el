@@ -34,28 +34,31 @@ etc.) to the choosen tab."
   (let ((inhibit-read-only t))
     (jss-browser-delete-and-insert-header)
     (insert "[ Connecting... ]"))
-  
-  (deferred:then
-    (jss-browser-get-tabs (jss-current-browser))
-    (lambda (browser)
-      (let ((inhibit-read-only t))
-        (jss-browser-delete-and-insert-header)
-        (dolist (tab (jss-browser-tabs browser))
-          (insert (format "%s - %s\n" (jss-tab-title tab) (jss-tab-url tab)))
-          (when (jss-tab-debugger-p tab)
-            (insert "  ")
-            (insert-text-button (if (jss-tab-console tab)
-                                    "[ goto console ]"
-                                  "[ open console ]")
-                                'action (lambda (button) (call-interactively 'jss-tab-goto-console))
-                                'jss-tab-id (jss-tab-id tab))
-            (insert "\n")))
-        (goto-char (point-min))
-        (forward-button 1)))
-    (lambda (message)
-      (let ((inhibit-read-only t))
-        (jss-browser-delete-and-insert-header)
-        (insert "Connection error: " message)))))
+
+  (lexical-let ((jss-browser-buffer (current-buffer)))
+    (jss-deferred-then
+     (jss-browser-get-tabs (jss-current-browser))
+     (lambda (browser)
+       (with-current-buffer jss-browser-buffer
+         (let ((inhibit-read-only t))
+           (jss-browser-delete-and-insert-header)
+           (dolist (tab (jss-browser-tabs browser))
+             (insert (format "%s.%s - %s\n" (jss-tab-id tab) (jss-tab-title tab) (jss-tab-url tab)))
+             (when (jss-tab-debugger-p tab)
+               (insert "  ")
+               (insert-text-button (if (jss-tab-console tab)
+                                       "[ goto console ]"
+                                     "[ open console ]")
+                                   'action (lambda (button) (call-interactively 'jss-tab-goto-console))
+                                   'jss-tab-id (jss-tab-id tab))
+               (insert "\n")))
+           (goto-char (point-min))
+           (forward-button 1))))
+     (lambda (message)
+       (with-current-buffer jss-browser-buffer
+         (let ((inhibit-read-only t))
+           (jss-browser-delete-and-insert-header)
+           (insert "Connection error: " message)))))))
 
 (defstruct jss-browser
   connector

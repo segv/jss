@@ -4,6 +4,13 @@
   ""
   t)
 
+(make-variable-buffer-local
+ (defvar jss-current-io-object))
+
+(defun jss-current-io () jss-current-io-object)
+
+(define-key jss-network-inspector-mode-map (kbd "q") (lambda () (interactive) (kill-buffer (current-buffer))))
+
 (defun jss-section-marker ()
   (insert "--------------------------------\n"))
 
@@ -30,8 +37,10 @@
   (unless io (error "io is nil. not good."))
   (if (jss-io-buffer io)
       (display-buffer (jss-io-buffer io))
+    
     (with-current-buffer (get-buffer-create (jss-io-buffer-name io))
       (jss-network-inspector-mode)
+
       (setf jss-current-io-object io
             (jss-io-buffer io) (current-buffer))
       
@@ -42,17 +51,26 @@
       (insert "Request Headers:") (insert-text-button "[view raw]" 'action 'identity) (insert "\n")
       (jss-network-inspector-insert-header-table (jss-io-request-headers io))
       (jss-section-marker)
-      (insert "Request Data: ") (insert-text-button "[view raw]" 'action 'identity) (insert "\n")
+      (insert "Request Data:\n")
       (jss-section-marker)
       (when (jss-io-response-status io)
         (insert "Response:\n")
         (insert (jss-io-response-status io) "\n")
         (jss-section-marker)
         (insert "Response Headers: ") (insert-text-button "[view raw]" 'action 'identity) (insert "\n")
-        
         (jss-network-inspector-insert-header-table (jss-io-response-headers io))
         (jss-section-marker)
-        (insert "Response Data: ") (insert-text-button "[view raw]" 'action 'identity) (insert "\n")
+        
+        (insert "Response Data: ")
+        (when (cdr (assoc 'Content-Type (jss-io-response-headers io)))
+          (insert "type: " (cdr (assoc 'Content-Type (jss-io-response-headers io)))))
+        (when (cdr (assoc 'Content-Length (jss-io-response-headers io)))
+          (insert "length: " (cdr (assoc 'Content-Length (jss-io-response-headers io)))))
+        (let ((data (jss-io-response-data io)))
+          (when data
+            (insert (format "; char length: %d\n" (length data)))
+            (insert (jss-io-response-data io))))
+        (insert "\n")
         (jss-section-marker))
 
       (read-only-mode 1)

@@ -1,5 +1,4 @@
 (require 'js2-mode)
-(require 'deferred)
 
 (defvar jss-super-mode-map
   (let ((map (make-sparse-keymap)))

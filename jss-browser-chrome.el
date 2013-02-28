@@ -4,6 +4,7 @@
 (require 'json)
 
 (require 'jss-browser-api)
+(require 'jss-deferred)
 
 ;;; Browser connector function
 
@@ -34,15 +35,15 @@
   (mapcar 'cdr (slot-value browser 'tabs)))
 
 (defmethod jss-browser-get-tabs ((browser jss-chrome-browser))
-  (lexical-let ((d (deferred:new))
+  (lexical-let ((d (make-jss-deferred))
                 (browser browser))
     (url-retrieve
      (jss-chrome-remote-debugging-url browser)
      (lambda (status)
        (if status
            (if (getf status :error)
-               (deferred:errorback d (prin1-to-string (getf status :error)))
-             (deferred:errorback d (format "Unrecognized error: %s" (prin1-to-string status))))
+               (jss-deferred-errorback d (prin1-to-string (getf status :error)))
+             (jss-deferred-errorback d (format "Unrecognized error: %s" (prin1-to-string status))))
          (progn
            (widen)
            (jss-log-event (list "google chrome GET"
@@ -69,11 +70,11 @@
                       do (setf (slot-value tab 'json-data) tab-data)
                     else
                       do (jss-browser-register-tab browser tab)
-                    finally (deferred:callback d browser))))
+                    finally (jss-deferred-callback d browser))))
              (let ((status (save-match-data
                              (looking-at "^HTTP/1\\.1 \\(.*\\)$")
                              (match-string 1))))
-               (deferred:errorback d (format "Bad status: %s" (prin1-to-string status)))))))))
+               (jss-deferred-errorback d (format "Bad status: %s" (prin1-to-string status)))))))))
     d))
 
 ;;; The tab API implementation
@@ -133,6 +134,9 @@
 
 (defsetf jss-tab-get-script jss-tab-set-script)
 
+(defmethod jss-tab-reload ((tab jss-chrome-tab))
+  (jss-chrome-send-request tab '("Page.reload")))
+
 (defmethod jss-tab-connected-p ((tab jss-chrome-tab))
   (slot-value tab 'websocket))
 
@@ -142,41 +146,42 @@
   (lexical-let ((tab tab)
                 (debugger-url (cdr (assoc 'webSocketDebuggerUrl (slot-value tab 'json-data)))))
     (jss-log-event (list :websocket debugger-url :open))
-    (lexical-let* ((ws-open (deferred:new))
+    (lexical-let* ((ws-open (make-jss-deferred))
                    (socket (websocket-open debugger-url
                                            :on-message (lambda (websocket frame)
                                                          (jss-chrome-tab-websocket/on-message tab websocket frame))
                                            :on-open (lambda (websocket)
                                                       (jss-chrome-tab-websocket/on-open tab websocket)
-                                                      (deferred:callback ws-open tab))
+                                                      (jss-deferred-callback ws-open tab))
                                            :on-close (lambda (websocket)
                                                        (jss-chrome-tab-websocket/on-close tab websocket))
                                            :on-error (lambda (websocket action error)
                                                        (jss-chrome-tab-websocket/on-error tab websocket action error)
-                                                       (deferred:errorback ws-open (list websocket action error))))))
+                                                       (jss-deferred-errorback ws-open (list websocket action error))))))
       (setf (slot-value tab 'websocket) socket)
       
-      (lexical-let* ((connect-deferred (deferred:new)))
+      (lexical-let* ((connect-deferred (make-jss-deferred)))
         ;; setup a deferred chain to send Console.enable after opening the ws connection
-        (deferred:then
+        (jss-deferred-then
           ws-open
           (lambda (tab)
             (lexical-let* ((tab tab)
                            (console (jss-tab-console tab)))
-              (deferred:nextc (jss-chrome-tab-enable tab "Console")
-                (lambda (response)
-                  (deferred:nextc
-                    (deferred:parallel
-                      (jss-chrome-tab-enable tab "Network")
-                      (jss-chrome-tab-enable tab "Debugger")
-                      (jss-chrome-tab-enable tab "Page"))
-                    (lambda (v)
-                      (jss-chrome-send-request
-                       tab '("Debugger.setPauseOnExceptions" (state . "all"))
-                       (lambda (v)
-                         (deferred:callback connect-deferred tab)))))))))
+              (jss-deferred-then
+               (jss-chrome-tab-enable tab "Console")
+               (lambda (response)
+                 (jss-deferred-then
+                  (jss-deferred-wait-on-all
+                   (jss-chrome-tab-enable tab "Network")
+                   (jss-chrome-tab-enable tab "Debugger")
+                   (jss-chrome-tab-enable tab "Page"))
+                  (lambda (v)
+                    (jss-deferred-then
+                      (jss-chrome-send-request tab '("Debugger.setPauseOnExceptions" (state . "all")))
+                      (lambda (v)
+                        (jss-deferred-callback connect-deferred tab)))))))))
           (lambda (v)
-            (deferred:errorback connect-deferred v)))
+            (jss-deferred-errorback connect-deferred v)))
         
         connect-deferred))))
 
@@ -184,12 +189,12 @@
   (lexical-let* ((tab tab)
                  (console (jss-tab-console tab))
                  (domain domain))
-    (jss-chrome-send-request tab
-                             (list (format "%s.enable" domain))
-                             (lambda (response)
-                               (jss-console-format-message console "// debug // %s enabled." domain))
-                             (lambda (response)
-                               (jss-console-format-message console "// debug // Could not enable %s: %s" domain response)))))
+    (jss-deferred-then
+      (jss-chrome-send-request tab (list (format "%s.enable" domain)))
+      (lambda (response)
+        (jss-console-format-message console "// debug // %s enabled." domain))
+      (lambda (response)
+        (jss-console-format-message console "// debug // Could not enable %s: %s" domain response)))))
 
 (defmethod jss-chrome-tab-websocket/on-message ((tab jss-chrome-tab) websocket frame)
   (jss-log-event (list :websocket
@@ -197,35 +202,42 @@
                        :on-message
                        websocket
                        frame))
-  (let ((message (with-temp-buffer
-                   (insert (websocket-frame-payload frame))
-                   (goto-char (point-min))
-                   (json-read)))
-        (console (jss-tab-ensure-console tab)))
-    (if (assoc 'error message)
-        (progn
-          (jss-log-event (list :google-chrome
-                               (jss-chrome-tab-debugger-url tab)
-                               :error
-                               (cdr (assoc 'error message))))
-          (jss-console-format-message console
-                                      "// Error: %s (%s)"
-                                      (cdr (assoc 'message (cdr (assoc 'error message))))
-                                      (cdr (assoc 'code (cdr (assoc 'error message))))))
-      (let ((request-id (cdr (assoc 'id message))))
-        (if request-id
-            (deferred:callback (gethash request-id (slot-value tab 'requests)) (cdr (assoc 'result message)))
-          (let* ((method (cdr (assoc 'method message)))
-                 (handler (gethash method jss-chrome-notification-handlers)))
-            (if handler
-                (funcall handler
-                         tab
-                         (cdr (assoc 'params message))
-                         message)
-              (jss-log-event (list :google-chrome
-                                   (jss-chrome-tab-debugger-url tab)
-                                   :unknown-request-id
-                                   message request-id)))))))))
+  (let* ((message (with-temp-buffer
+                    (insert (websocket-frame-payload frame))
+                    (goto-char (point-min))
+                    (json-read)))
+         (request-id (cdr (assoc 'id message)))
+         (request-deferred (gethash request-id (slot-value tab 'requests)))
+         (console (jss-tab-ensure-console tab))
+         (err (cdr (assoc 'error message))))
+    (when err
+      (warn "Got err %s" err))
+    (if err
+        (if request-deferred
+            (jss-deferred-errorback request-deferred err)
+          (progn
+            (jss-log-event (list :google-chrome
+                                 (jss-chrome-tab-debugger-url tab)
+                                 :unhandled-error
+                                 err))
+            (jss-console-format-message console
+                                        "// Unhandled error: %s (%s)"
+                                        (cdr (assoc 'message err))
+                                        (cdr (assoc 'code    err)))))
+      
+      (if request-deferred
+          (jss-deferred-callback request-deferred (cdr (assoc 'result message)))
+        (let* ((method (cdr (assoc 'method message)))
+               (handler (gethash method jss-chrome-notification-handlers)))
+          (if handler
+              (funcall handler
+                       tab
+                       (cdr (assoc 'params message))
+                       message)
+            (jss-log-event (list :google-chrome
+                                 (jss-chrome-tab-debugger-url tab)
+                                 :unknown-request-id
+                                 message request-id))))))))
 
 (defvar jss-chrome-notification-handlers (make-hash-table :test 'equal))
 
@@ -248,11 +260,10 @@
   (format "%s %s" (slot-value d 'reason) (slot-value d 'data)))
 
 (defmethod jss-debugger-continue ((d jss-chrome-debugger))
-  (jss-chrome-send-request (jss-debugger-tab d)
-                           '("Debugger.resume")
-                           (lambda (response) t)
-                           (lambda (err)
-                             (error "Failed to resume execution: %s" err))))
+  (jss-deferred-error
+    (jss-chrome-send-request (jss-debugger-tab d) '("Debugger.resume"))
+    (lambda (err)
+      (error "Failed to resume execution: %s" err))))
 
 (defclass jss-chrome-stack-frame (jss-generic-stack-frame)
   ((properties :initarg :properties)
@@ -284,23 +295,24 @@
 (define-jss-chrome-notification-handler "Debugger.paused" (callFrames reason data)
   (jss-console-format-message console "// ERROR // %s" reason)
   (let ((jss-debugger (make-instance 'jss-chrome-debugger
-                                        :callFrames (loop
-                                                     for frame across callFrames
-                                                     collect (make-instance 'jss-chrome-stack-frame
-                                                                            :properties frame))
-                                        :reason reason
-                                        :data (cond 
-					       ((string= "exception" reason)
-						(let ((oid (cdr (assoc 'objectId data))))
-						  (if oid
-						      (jss-chrome-send-request tab `("Runtime.getProperties"
-										     (objectId . ,oid)
-										     (ownProperties . ,json-false))
-									       (lambda (response)
-										 (message "getProperties: %s" response)))))
-						data)
-					       (t data))
-                                        :tab tab)))
+                                     :callFrames (loop
+                                                  for frame across callFrames
+                                                  collect (make-instance 'jss-chrome-stack-frame
+                                                                         :properties frame))
+                                     :reason reason
+                                     :data (cond 
+                                            ((string= "exception" reason)
+                                             (let ((oid (cdr (assoc 'objectId data))))
+                                               (if oid
+                                                   (jss-deferred-then
+                                                    (jss-chrome-send-request tab `("Runtime.getProperties"
+                                                                                   (objectId . ,oid)
+                                                                                   (ownProperties . ,json-false)))
+                                                    (lambda (response)
+                                                      (message "getProperties: %s" response)))))
+                                             data)
+                                            (t data))
+                                     :tab tab)))
     (dolist (frame (jss-debugger-stack-frames jss-debugger))
       (setf (slot-value frame 'debugger) jss-debugger))
     (jss-tab-open-debugger tab jss-debugger)))
@@ -325,9 +337,9 @@
   (setf (slot-value tab 'websocket) nil))
 
 (defmethod jss-chrome-tab-websocket/on-error ((tab jss-chrome-tab) websocket action error)
-  (jss-log-event (list :websocket (jss-chrome-tab-debugger-url tab) websocket action error)))
+  (jss-log-event (list :websocket (jss-chrome-tab-debugger-url tab) :on-error websocket action error)))
 
-(defmethod jss-chrome-send-request ((tab jss-chrome-tab) request then &optional error)
+(defmethod jss-chrome-send-request ((tab jss-chrome-tab) request)
   (let* ((ws (slot-value tab 'websocket))
          (request-id (incf (slot-value tab 'request-counter)))
          (payload (list* (cons 'id request-id)
@@ -335,14 +347,14 @@
                          (when (rest request)
                            (list (cons 'params (rest request))))))
          (text (json-encode payload))
-         (deferred (deferred:new)))
+         (deferred (make-jss-deferred)))
     
     (jss-log-event (list :websocket (jss-chrome-tab-debugger-url tab)
                          payload
                          text))
     (setf (gethash request-id (slot-value tab 'requests)) deferred)
     (websocket-send-text ws text)
-    (deferred:then deferred then error)))
+    deferred))
 
 (defclass jss-chrome-console (jss-generic-console)
   ((messages :initform (make-hash-table) :accessor jss-chrome-console-messages)))
@@ -352,29 +364,35 @@
 
 (defmethod jss-console-evaluate ((console jss-chrome-console) js-code)
   (lexical-let ((console console))
-    (jss-chrome-send-request (jss-console-tab console)
-                             `("Runtime.evaluate" (expression . ,js-code) (objectGroup . "jssConsoleEvaluate"))
-                             (lambda (response)
-                               (let* ((result (cdr (assoc 'result response)))
-                                      (type (cdr (assoc 'type result)))
-                                      (value (cdr (assoc 'value result))))
-                                 (cond
-                                  ((string= type "boolean") (ecase value
-                                                              ((t) "true")
-                                                              (:json-false "false")))
-                                  ((string= type "function") "function () { ... }")
-                                  ((string= type "number") (if (integerp value)
-                                                               (format "%d" value)
-                                                             (format "%g" value)))
-                                  ((string= type "object") (let ((class-name (cdr (assoc 'className result)))
-                                                                 (description (cdr (assoc 'description result))))
-                                                             (if (string= class-name description)
-                                                                 (format "[%s]" description)
-                                                               (format "[%s %s]" class-name description))))
-                                  ((string= type "string") (prin1-to-string value))
-                                  ((string= type "undefined") "undefined")
-                                  (t
-                                   (error "Unknown result type %s" type))))))))
+    (jss-deferred-then
+      (jss-chrome-send-request (jss-console-tab console)
+                               `("Runtime.evaluate"
+                                 (expression . ,js-code)
+                                 (objectGroup . "jssConsoleEvaluate")))
+      (lambda (response)
+        (let* ((result (cdr (assoc 'result response)))
+               (type (cdr (assoc 'type result)))
+               (value (cdr (assoc 'value result))))
+          (cond
+           ((string= type "boolean") (ecase value
+                                       ((t) "true")
+                                       (:json-false "false")))
+           ((string= type "function") "function () { ... }")
+           ((string= type "number") (if (integerp value)
+                                        (format "%d" value)
+                                      (format "%g" value)))
+           ((string= type "object") (let ((class-name (cdr (assoc 'className result)))
+                                          (description (cdr (assoc 'description result))))
+                                      (if (string= class-name description)
+                                          (format "[%s]" description)
+                                        (format "[%s %s]" class-name description))))
+           ((string= type "string") (prin1-to-string value))
+           ((string= type "undefined") "undefined")
+           (t
+            (error "Unknown result type %s" type))))))))
+
+(defmethod jss-console-clear ((console jss-chrome-console))
+  t)
 
 (define-jss-chrome-notification-handler "Console.messageAdded" (message)
   (jss-console-format-message console "// %s // %s" (cdr (assoc 'type message)) (cdr (assoc 'text message))))
@@ -387,7 +405,8 @@
 
 (defclass jss-chrome-io (jss-generic-io)
   ((properties :accessor jss-chrome-io-properties :initarg :properties)
-   (response :accessor jss-chrome-io-response :initform nil)))
+   (response :accessor jss-chrome-io-response :initform nil)
+   (responseBody :accessor jss-chrome-io-responseBody :initform nil)))
 
 (defmethod jss-io-request-headers ((io jss-chrome-io))
   (cdr (assoc 'headers (cdr (assoc 'request (jss-chrome-io-properties io))))))
@@ -402,6 +421,16 @@
   (if (assoc 'redirectResponse (jss-chrome-io-properties io))
       (cdr (assoc 'headers (cdr (assoc 'redirectResponse (jss-chrome-io-properties io)))))
       (cdr (assoc 'headers (jss-chrome-io-response io)))))
+
+(defmethod jss-io-response-data ((io jss-chrome-io))
+  (if (jss-chrome-io-responseBody io)
+      (let ((base64-p (cdr (assoc 'base64Encoded (jss-chrome-io-responseBody io))))
+            (body (cdr (assoc 'body (jss-chrome-io-responseBody io)))))
+        (if (eql :json-false base64-p)
+            body
+          (base64-decode-string body)))
+    ;; fwiw nil means something different from "" (no data vs 0 bytes of ata)
+    nil))
 
 (defmethod jss-io-response-status ((io jss-chrome-io))
   (flet ((make-status-line (response)
@@ -450,7 +479,20 @@
   (with-existing-io requestId
     (push (list :loading-finished timestamp)
           (jss-io-lifecycle io))
-   (jss-console-update-request-message console io)))
+    (lexical-let ((io io)
+                  (requestId requestId))
+      (jss-deferred-then
+        (jss-chrome-send-request tab `("Network.getResponseBody" (requestId . ,requestId)))
+        (lambda (response)
+          (setf (jss-chrome-io-responseBody io) response))
+        (lambda (response)
+          (warn "Network.getResponseBody(requestId: %s) => %s"
+                requestId
+                response
+                ;(cdr (assoc 'message response))
+                ;(cdr (assoc 'code response))
+                ))))
+    (jss-console-update-request-message console io)))
 
 (define-jss-chrome-notification-handler "Network.requestServedFromCache" (requestId)
   (with-existing-io requestId
@@ -476,6 +518,7 @@
                 :response response)
           (jss-io-lifecycle io))
     (setf (jss-chrome-io-response io) response)
+    
    (jss-console-update-request-message console io)))
 
 (provide 'jss-browser-chrome)
