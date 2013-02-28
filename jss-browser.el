@@ -14,7 +14,7 @@ etc.) to the choosen tab."
   (setf jss-current-browser-instance jss-browser)
   (jss-browser-mode-refresh))
 
-(define-key jss-super-mode-map (kbd "g") 'jss-browser-mode-refresh)
+(define-key jss-browser-mode-map (kbd "g") 'jss-browser-mode-refresh)
 
 (make-variable-buffer-local
  (defvar jss-current-browser-instance nil))

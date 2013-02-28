@@ -247,6 +247,13 @@
 (defmethod jss-debugger-message ((d jss-chrome-debugger))
   (format "%s %s" (slot-value d 'reason) (slot-value d 'data)))
 
+(defmethod jss-debugger-continue ((d jss-chrome-debugger))
+  (jss-chrome-send-request (jss-debugger-tab d)
+                           '("Debugger.resume")
+                           (lambda (response) t)
+                           (lambda (err)
+                             (error "Failed to resume execution: %s" err))))
+
 (defclass jss-chrome-stack-frame (jss-generic-stack-frame)
   ((properties :initarg :properties)
    (debugger)))
@@ -282,7 +289,17 @@
                                                      collect (make-instance 'jss-chrome-stack-frame
                                                                             :properties frame))
                                         :reason reason
-                                        :data data
+                                        :data (cond 
+					       ((string= "exception" reason)
+						(let ((oid (cdr (assoc 'objectId data))))
+						  (if oid
+						      (jss-chrome-send-request tab `("Runtime.getProperties"
+										     (objectId . ,oid)
+										     (ownProperties . ,json-false))
+									       (lambda (response)
+										 (message "getProperties: %s" response)))))
+						data)
+					       (t data))
                                         :tab tab)))
     (dolist (frame (jss-debugger-stack-frames jss-debugger))
       (setf (slot-value frame 'debugger) jss-debugger))

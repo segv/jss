@@ -17,6 +17,26 @@
       (insert (prin1-to-string event-part) "\n"))
     (insert ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n")))
 
+(defun jss-comment-char (string)
+  (insert (propertize string
+                      'face font-lock-comment-face
+                      'font-lock-face font-lock-comment-face)))
+
+(defun jss-eol-mark ()
+  (when (member (preceding-char) (list ?  ?\n ?\t ?\r))
+    (jss-comment-char "$"))
+  (insert "\n"))
+
+(defun jss-insert-with-highlighted-whitespace (string)
+  (save-match-data
+    (when (string= "" string)
+      (jss-comment-char "^$"))
+    (when (string-match "^[ \t\r\n\f]" string)
+      (jss-comment-char "^"))
+    (insert string)
+    (when (string-match "[ \t\r\n\f]$" string)
+      (jss-comment-char "$"))))
+
 (require 'jss-browser-api)
 (require 'jss-browser-chrome)
 (require 'jss-browser-firefox)

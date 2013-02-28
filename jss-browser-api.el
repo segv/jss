@@ -111,6 +111,8 @@ existing tab objects.")
 
 (defgeneric jss-debugger-message (debugger))
 
+(defgeneric jss-debugger-continue (debugger))
+
 ;;; nb: do NOT name the debugger parameter debugger. it messes with emacs in strange ways.
 (defmethod jss-tab-open-debugger ((tab jss-generic-tab) dbg)
   (setf (jss-debugger-buffer dbg) (get-buffer-create (generate-new-buffer-name "*JSS Debugger*"))
