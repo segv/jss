@@ -12,11 +12,10 @@
                      (read-from-minibuffer "Post: " "9222")))
   (with-current-buffer (get-buffer-create (format "*Google Chrome@%s:%s*" host port))
     (switch-to-buffer (current-buffer))
-    (jss-browser-mode)
-    (setf jss-current-browser-instance (make-instance 'jss-chrome-browser
-                                                      :host host
-                                                      :port port))
-    (jss-browser-mode-refresh)))
+    (let ((jss-browser (make-instance 'jss-chrome-browser
+                                      :host host
+                                      :port port)))
+      (jss-browser-mode))))
 
 ;;; The browser API implementation
 
@@ -179,9 +178,9 @@
     (jss-chrome-send-request tab
                              (list (format "%s.enable" domain))
                              (lambda (response)
-                               (jss-console-insert-message console (format "// INFO // %s enabled." domain)))
+                               (jss-console-format-message console "// INFO // %s enabled." domain))
                              (lambda (response)
-                               (jss-console-insert-message console (format "// INFO // Could not enable %s: %s" domain response))))))
+                               (jss-console-format-message console "// INFO // Could not enable %s: %s" domain response)))))
 
 (defmethod jss-chrome-tab-websocket/on-message ((tab jss-chrome-tab) websocket frame)
   (jss-log-event (list :websocket
@@ -200,19 +199,20 @@
                                (jss-chrome-tab-debugger-url tab)
                                :error
                                (cdr (assoc 'error message))))
-          (jss-console-insert-message console
-                                      (format "// Error: %s (%s)"
-                                              (cdr (assoc 'message (cdr (assoc 'error message))))
-                                              (cdr (assoc 'code (cdr (assoc 'error message)))))))
+          (jss-console-format-message console
+                                      "// Error: %s (%s)"
+                                      (cdr (assoc 'message (cdr (assoc 'error message))))
+                                      (cdr (assoc 'code (cdr (assoc 'error message))))))
       (let ((request-id (cdr (assoc 'id message))))
         (if request-id
             (deferred:callback (gethash request-id (slot-value tab 'requests)) (cdr (assoc 'result message)))
           (let* ((method (cdr (assoc 'method message)))
                  (handler (gethash method jss-chrome-notification-handlers)))
             (if handler
-                (funcall (lambda (params)
-                           (funcall handler tab params))
-                         (cdr (assoc 'params message)))
+                (funcall handler
+                         tab
+                         (cdr (assoc 'params message))
+                         message)
               (jss-log-event (list :google-chrome
                                    (jss-chrome-tab-debugger-url tab)
                                    :unknown-request-id
@@ -222,7 +222,7 @@
 
 (defmacro define-jss-chrome-notification-handler (name args &rest body)
   `(setf (gethash ,name jss-chrome-notification-handlers)
-         (lambda (tab params)
+         (lambda (tab params message)
            (lexical-let ,(mapcar (lambda (arg-name)
                                    (list arg-name `(cdr (assoc ',arg-name params))))
                                  args)
@@ -237,7 +237,7 @@
   t)
 
 (define-jss-chrome-notification-handler "Debugger.paused" (callFrames reason data)
-  (jss-console-insert-message (jss-tab-console tab) (format "// ERROR // %s/%s" reason data)))
+  (jss-console-format-message (jss-tab-console tab) "// ERROR // %s/%s" reason data))
 
 (define-jss-chrome-notification-handler "Debugger.resumed" ()
   t)
@@ -309,8 +309,8 @@
                                   (t
                                    (error "Unknown result type %s" type))))))))
 
-(define-jss-chrome-notification-handler "Console.messageAdded" (message)
-  (jss-console-insert-message console message))
+(define-jss-chrome-notification-handler "Console.messageAdded" ()
+  (jss-console-format-message console "// Console.messageAdded // %s" message))
 
 (define-jss-chrome-notification-handler "Console.messagesCleared" ()
   t)
@@ -325,8 +325,25 @@
 (defmethod jss-io-request-headers ((io jss-chrome-io))
   (cdr (assoc 'headers (cdr (assoc 'request (jss-chrome-io-properties io))))))
 
+(defmethod jss-io-request-method ((io jss-chrome-io))
+  (cdr (assoc 'method (cdr (assoc 'request (jss-chrome-io-properties io))))))
+
+(defmethod jss-io-request-url ((io jss-chrome-io))
+  (cdr (assoc 'url (cdr (assoc 'request (jss-chrome-io-properties io))))))
+
 (defmethod jss-io-response-headers ((io jss-chrome-io))
-  (cdr (assoc 'headers (jss-chrome-io-response io))))
+  (if (assoc 'redirectResponse (jss-chrome-io-properties io))
+      (cdr (assoc 'headers (cdr (assoc 'redirectResponse (jss-chrome-io-properties io)))))
+      (cdr (assoc 'headers (jss-chrome-io-response io)))))
+
+(defmethod jss-io-response-status ((io jss-chrome-io))
+  (flet ((make-status-line (response)
+                           (format "%s %s"
+                                   (cdr (assoc 'status response))
+                                   (cdr (assoc 'statusText response)))))
+    (if (assoc 'redirectResponse (jss-chrome-io-properties io))
+        (make-status-line (cdr (assoc 'redirectResponse (jss-chrome-io-properties io))))
+      (make-status-line (jss-chrome-io-response io)))))
 
 (defmethod jss-io-uid ((io jss-chrome-io))
   (cdr (assoc 'requestId (jss-chrome-io-properties io))))
@@ -336,7 +353,6 @@
                                  (make-instance 'jss-chrome-io
                                                 :properties params
                                                 :start-time timestamp
-                                                :url (cdr (assoc 'url request))
                                                 :lifecycle (list (list :sent timestamp))))))
     (jss-console-insert-request console io)))
 

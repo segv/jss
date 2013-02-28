@@ -71,11 +71,7 @@ existing tab objects.")
 
 (defclass jss-generic-io ()
   ((start-time :accessor jss-io-start :initarg :start-time)
-   (url :accessor jss-io-url :initarg :url)
-   (response-data :accessor jss-io-response-data :initarg :response-data)
-
    (lifecycle :initform '() :accessor jss-io-lifecycle :initarg :lifecycle)
-
    (buffer :initform nil :accessor jss-io-buffer)))
 
 (defgeneric jss-io-uid (io))
@@ -83,6 +79,13 @@ existing tab objects.")
 (defgeneric jss-io-request-headers (io))
 
 (defgeneric jss-io-response-headers (io))
+
+(defgeneric jss-io-request-method (io))
+
+(defgeneric jss-io-request-url (io))
+
+(defgeneric jss-io-response-status (io)
+  "Either an integer specifying the status code or nil specifying that we're still waiting for the response.")
 
 (defgeneric jss-tab-get-io (tab io-id))
 

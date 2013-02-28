@@ -4,7 +4,10 @@
 (define-derived-mode jss-console-mode jss-super-mode "JSS Console"
   "Mode for interactiing with a remote javascirpt console."
   (add-hook 'kill-buffer-hook 'jss-console-kill)
-  (setf jss-console-connection-state 'disconnected)
+  ;; assume caller bind jss-console
+  (setf jss-current-console-instance jss-console)
+  (jss-console-insert-prompt)
+  (jss-console-ensure-connection)
   t)
 
 (define-key jss-console-mode-map (kbd "C-c C-r") 'jss-console-ensure-connection)
@@ -34,10 +37,8 @@
       (let ((console (jss-tab-make-console tab :tab tab)))
         (setf (jss-tab-console tab) console)
         (with-current-buffer (jss-console-buffer console)
-          (jss-console-mode)
-          (setf jss-current-console-instance console)
-          (jss-console-insert-prompt)
-          (jss-console-ensure-connection))
+          (let ((jss-console console))
+            (jss-console-mode)))
         console)))
 
 (defun jss-console-insert-prompt (&rest other-properties)
@@ -50,9 +51,6 @@
                           'jss-console-prompt t
                           'rear-nonsticky t
                           other-properties))))
-
-(make-variable-buffer-local
- (defvar jss-console-connection-state 'disconnected))
 
 (defun jss-console-ensure-connection ()
   (interactive)
@@ -227,12 +225,24 @@
             (add-text-properties start (point) properties)))))))
 
 (defmethod jss-console-insert-io-line ((console jss-generic-console) io)
-  (jss-console-format-message console "// INFO // %s: %s %s"
-                              (jss-io-uid io)
-                              (jss-io-url io)
-                              (first (first (jss-io-lifecycle io)))
-                              :properties (list 'jss-io-id (jss-io-uid io)
-                                                'jss-default-action 'jss-console-switch-to-io-inspector)))
+  (with-current-buffer (jss-console-buffer console)
+    (save-excursion
+      (jss-console-before-last-prompt)
+      (let ((start (point))
+            (inhibit-read-only t))
+        (insert "// INFO // ")
+        (let ((button-start (point)))
+          (insert (jss-io-uid io))
+          (make-text-button button-start (point)
+                            'action (lambda (button)
+                                      (call-interactively 'jss-console-switch-to-io-inspector))))
+        (insert (format ": %s %s"
+                        (jss-io-request-url io)
+                        (first (first (jss-io-lifecycle io)))))
+        (insert "\n")
+        (add-text-properties start (point)
+                             (list 'read-only t
+                                   'jss-io-id (jss-io-uid io)))))))
 
 (defmethod jss-console-insert-request ((console jss-generic-console) io)
   (jss-console-insert-io-line console io))

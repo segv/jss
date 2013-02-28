@@ -2,12 +2,6 @@
 (require 'eieio)
 (require 'jss-browser-api)
 
-(defvar jss-browser-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map (make-composed-keymap button-buffer-map jss-super-mode-map))
-    (define-key map (kbd "g") 'jss-browser-mode-refresh)
-    map))
-
 (define-derived-mode jss-browser-mode jss-super-mode "JSS Browser"
   "Major mode for listing information about a browser, mainly a list of available tabs.
 
@@ -16,7 +10,11 @@ After connecting to a specific browser instance, via
 ability to attach a debugger, in the form of a set of
 buffers (one for the console, one for the network activity,
 etc.) to the choosen tab."
-  t)
+  ;; bound by caller
+  (setf jss-current-browser-instance jss-browser)
+  (jss-browser-mode-refresh))
+
+(define-key jss-super-mode-map (kbd "g") 'jss-browser-mode-refresh)
 
 (make-variable-buffer-local
  (defvar jss-current-browser-instance nil))
@@ -24,7 +22,7 @@ etc.) to the choosen tab."
 (defun jss-current-browser ()
   jss-current-browser-instance)
 
-(defun jss-browser-insert-header ()
+(defun jss-browser-delete-and-insert-header ()
   (widen)
   (delete-region (point-min) (point-max))
   (insert (jss-browser-description (jss-current-browser)) "\n\n"))
@@ -32,14 +30,16 @@ etc.) to the choosen tab."
 (defun jss-browser-mode-refresh ()
   (interactive)
   (setf buffer-read-only t)
+  
   (let ((inhibit-read-only t))
-    (jss-browser-insert-header)
+    (jss-browser-delete-and-insert-header)
     (insert "[ Connecting... ]"))
+  
   (deferred:then
     (jss-browser-get-tabs (jss-current-browser))
     (lambda (browser)
       (let ((inhibit-read-only t))
-        (jss-browser-insert-header)
+        (jss-browser-delete-and-insert-header)
         (dolist (tab (jss-browser-tabs browser))
           (insert (format "%s - %s\n" (jss-tab-title tab) (jss-tab-url tab)))
           (when (jss-tab-debugger-p tab)
@@ -54,7 +54,7 @@ etc.) to the choosen tab."
         (forward-button 1)))
     (lambda (message)
       (let ((inhibit-read-only t))
-        (jss-browser-insert-header)
+        (jss-browser-delete-and-insert-header)
         (insert "Connection error: " message)))))
 
 (defstruct jss-browser

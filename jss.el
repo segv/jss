@@ -1,6 +1,11 @@
 (require 'js2-mode)
 (require 'deferred)
 
+(defvar jss-super-mode-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map (make-composed-keymap button-buffer-map text-mode-map))
+    map))
+
 (define-derived-mode jss-super-mode text-mode "Generic JSS Mode"
   "Functionality common to all JSS modes."
   t)
