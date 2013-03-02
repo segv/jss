@@ -36,7 +36,7 @@ etc.) to the choosen tab."
     (insert "[ Connecting... ]"))
 
   (lexical-let ((jss-browser-buffer (current-buffer)))
-    (jss-deferred-then
+    (jss-deferred-add-backs
      (jss-browser-get-tabs (jss-current-browser))
      (lambda (browser)
        (with-current-buffer jss-browser-buffer
@@ -58,7 +58,7 @@ etc.) to the choosen tab."
        (with-current-buffer jss-browser-buffer
          (let ((inhibit-read-only t))
            (jss-browser-delete-and-insert-header)
-           (insert "Connection error: " message)))))))
+           (insert "\nConnection error: " message)))))))
 
 (defstruct jss-browser
   connector

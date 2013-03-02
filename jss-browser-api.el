@@ -19,13 +19,13 @@ existing tab objects.")
 
 (defgeneric jss-browser-find-tab (browser tab-id))
 
-(defgeneric jss-browser-register-tab (browser tab))
-
 (defclass jss-generic-tab ()
   ((browser :initarg :browser :accessor jss-tab-browser)
    (console :initform nil :accessor jss-tab-console)
-   (io :initform (make-hash-table :test 'equal)
-       :accessor jss-tab-io)))
+   (ios :initform (make-hash-table :test 'equal)
+        :accessor jss-tab-ios)
+   (scripts :initform (make-hash-table :test 'equal)
+            :accessor jss-tab-scripts)))
 
 (make-variable-buffer-local
  (defvar jss-current-tab-instance nil))
@@ -52,6 +52,21 @@ existing tab objects.")
 
 (defgeneric jss-tab-open-debugger (tab debugger))
 
+(defgeneric jss-tab-object-properties (tab object-id))
+
+(defgeneric jss-tab-get-script (tab script-id))
+
+(defmethod jss-tab-get-script ((tab jss-generic-tab) script-id)
+  (gethash script-id (jss-tab-scripts tab)))
+
+(defgeneric jss-tab-set-script (tab script-id script))
+(defsetf jss-tab-get-script jss-tab-set-script)
+
+(defmethod jss-tab-set-script ((tab jss-generic-tab) script-id script)
+  (setf (gethash script-id (jss-tab-scripts tab)) script))
+
+(defgeneric jss-evaluate (context text))
+
 (defclass jss-generic-console ()
   ((tab :initarg :tab
         :initform nil
@@ -73,13 +88,19 @@ existing tab objects.")
 
 (defgeneric jss-console-insert-io (console io))
 
+(defgeneric jss-console-cleanup (console))
+
+(defmethod jss-console-cleanup :after ((console jss-generic-console))
+  (setf (jss-tab-console (jss-console-tab console)) nil
+        (jss-console-tab console) nil))
+
 (defclass jss-generic-io ()
   ((tab :accessor jss-io-tab :initform nil)
    (start-time :accessor jss-io-start :initarg :start-time)
    (lifecycle :initform '() :accessor jss-io-lifecycle :initarg :lifecycle)
    (buffer :initform nil :accessor jss-io-buffer)))
 
-(defgeneric jss-io-uid (io))
+(defgeneric jss-io-id (io))
 
 (defgeneric jss-io-request-headers (io))
 
@@ -95,17 +116,27 @@ existing tab objects.")
 (defgeneric jss-tab-get-io (tab io-id))
 
 (defmethod jss-tab-get-io ((tab jss-generic-tab) io-id)
-  (gethash io-id (jss-tab-io tab)))
+  (gethash io-id (jss-tab-ios tab)))
 
-(defgeneric jss-tab-register-io (tab io-id io-object))
+(defmethod jss-tab-set-io ((tab jss-generic-tab) io-id io-object)
+  (if (null (jss-io-tab io-object))
+      (setf (jss-io-tab io-object) tab
+            (gethash io-id (jss-tab-ios tab)) io-object)
+    (unless (eq tab (jss-io-tab io-object))
+      (error "Attempt to add IO %s to tab %s, but it's already registered with %s."
+             io-object tab (jss-io-tab io-object)))))
 
-(defmethod jss-tab-register-io ((tab jss-generic-tab) io-id io-object)
-  (setf (jss-io-tab io-object) tab
-        (gethash io-id (jss-tab-io tab)) io-object))
+(defsetf jss-tab-get-io jss-tab-set-io)
+
+(defgeneric jss-tab-unregister-io (tab io-id io-object))
+
+(defmethod jss-tab-unregister-io ((tab jss-generic-tab) io)
+  (remhash (jss-io-id io) (jss-tab-ios tab))
+  io)
 
 (defmethod jss-io-buffer-name ((io jss-generic-io))
   (or (slot-value io 'buffer)
-      (setf (slot-value io 'buffer) (get-buffer-create (format "*JSS IO %s*" (jss-io-uid io))))))
+      (setf (slot-value io 'buffer) (get-buffer-create (format "*JSS IO %s*" (jss-io-id io))))))
 
 (defclass jss-generic-debugger ()
   ((buffer :accessor jss-debugger-buffer)
@@ -127,13 +158,73 @@ existing tab objects.")
     (switch-to-buffer-other-window (current-buffer))))
 
 (defclass jss-generic-stack-frame ()
-  ())
+  ((debugger :initarg :debugger :accessor jss-frame-debugger)))
 
 (defgeneric jss-frame-function-name (frame))
 
 (defgeneric jss-frame-source-url (frame))
 
 (defgeneric jss-frame-source-position (frame))
+
+(defclass jss-generic-remote-value () ())
+
+(defgeneric jss-remote-value-insert (remote-object))
+
+(defclass jss-generic-remote-primitive (jss-generic-remote-value)
+  ((value :initarg :value :accessor jss-remote-primitive-value)))
+
+(defclass jss-generic-remote-boolean (jss-generic-remote-primitive) ())
+
+(defclass jss-generic-remote-true (jss-generic-remote-primitive) ())
+
+(defmethod jss-remote-value-insert ((object jss-generic-remote-true))
+  (insert "true"))
+
+(defclass jss-generic-remote-false (jss-generic-remote-primitive) ())
+
+(defmethod jss-remote-value-insert ((object jss-generic-remote-false))
+  (insert "false"))
+
+(defclass jss-generic-remote-string (jss-generic-remote-primitive) ())
+
+(defmethod jss-remote-value-insert ((string jss-generic-remote-string))
+  (insert-and-inherit (prin1-to-string (jss-remote-primitive-value string))))
+
+(defclass jss-generic-remote-number (jss-generic-remote-primitive) ())
+
+(defmethod jss-remote-value-insert ((number jss-generic-remote-number))
+  (let ((value (jss-remote-primitive-value number)))
+    (if (integerp value)
+        (insert-and-inherit (format "%d" value))
+      (insert-and-inherit (format "%g" value)))))
+
+(defclass jss-generic-remote-NaN (jss-generic-remote-primitive) ())
+
+(defmethod jss-remote-value-insert ((object jss-generic-remote-NaN))
+  (insert "NaN"))
+
+(defclass jss-generic-remote-undefined (jss-generic-remote-primitive) ())
+
+(defmethod jss-remote-value-insert ((object jss-generic-remote-undefined))
+  (insert "undefined"))
+
+(defclass jss-generic-remote-object (jss-generic-remote-value) ())
+
+(defmethod jss-remote-value-insert ((object jss-generic-remote-object))
+  (let ((class-name  (jss-remote-object-class-name object))
+        (label  (jss-remote-object-label object)))
+    (if (string= label class-name)
+        (insert (format "[%s]" label))
+      (insert (format "[%s %s]" class-name label)))))
+
+(defclass jss-generic-remote-function (jss-generic-remote-value) ())
+
+(defclass jss-generic-remote-array (jss-generic-remote-object) ())
+
+(defclass jss-generic-remote-no-value (jss-generic-remote-primitive) ())
+
+(defmethod jss-remote-value-insert ((object jss-generic-remote-NaN))
+  (insert "no value."))
 
 (provide 'jss-browser-api)
 

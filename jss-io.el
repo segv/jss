@@ -1,7 +1,9 @@
 (require 'jss-browser-api)
 
-(define-derived-mode jss-network-inspector-mode jss-super-mode "JSS IO"
+(define-derived-mode jss-io-mode jss-super-mode "JSS IO"
   ""
+  (add-hook 'kill-buffer-hook 'jss-io-kill-buffer nil t)
+
   t)
 
 (make-variable-buffer-local
@@ -9,12 +11,13 @@
 
 (defun jss-current-io () jss-current-io-object)
 
-(define-key jss-network-inspector-mode-map (kbd "q") (lambda () (interactive) (kill-buffer (current-buffer))))
+(define-key jss-io-mode-map (kbd "q") (lambda () (interactive) (kill-buffer (current-buffer))))
 
-(defun jss-section-marker ()
-  (insert "--------------------------------\n"))
+(defun jss-io-kill-buffer ()
+  (interactive)
+  (jss-tab-unregister-io (jss-io-tab (jss-current-io)) (jss-current-io)))
 
-(defun jss-network-inspector-insert-header-table (header-alist)
+(defun jss-io-insert-header-table (header-alist)
   (when header-alist
     (let* ((headers (mapcar (lambda (h)
                               (if (stringp (car h))
@@ -39,7 +42,7 @@
       (display-buffer (jss-io-buffer io))
     
     (with-current-buffer (get-buffer-create (jss-io-buffer-name io))
-      (jss-network-inspector-mode)
+      (jss-io-mode)
 
       (setf jss-current-io-object io
             (jss-io-buffer io) (current-buffer))
@@ -49,7 +52,7 @@
       (jss-eol-mark)
       (jss-section-marker)
       (insert "Request Headers:") (insert-text-button "[view raw]" 'action 'identity) (insert "\n")
-      (jss-network-inspector-insert-header-table (jss-io-request-headers io))
+      (jss-io-insert-header-table (jss-io-request-headers io))
       (jss-section-marker)
       (insert "Request Data:\n")
       (jss-section-marker)
@@ -58,7 +61,7 @@
         (insert (jss-io-response-status io) "\n")
         (jss-section-marker)
         (insert "Response Headers: ") (insert-text-button "[view raw]" 'action 'identity) (insert "\n")
-        (jss-network-inspector-insert-header-table (jss-io-response-headers io))
+        (jss-io-insert-header-table (jss-io-response-headers io))
         (jss-section-marker)
         
         (insert "Response Data: ")
@@ -77,4 +80,4 @@
       (goto-char (point-min)))
     (display-buffer (jss-io-buffer io))))
 
-(provide 'jss-network-inspector)
+(provide 'jss-io)
