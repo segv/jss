@@ -1,8 +1,6 @@
 ;;; the jss prompt is designed so that it can be embedded in multiple
 ;;; places (the console buffer and the debugger for now).
 
-(defvar jss-prompt-counter 0)
-
 (defvar jss-prompt-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map js2-mode-map)
@@ -12,121 +10,148 @@
 (define-key jss-prompt-map (kbd "C-c C-c") 'jss-prompt-eval)
 (define-key jss-prompt-map (kbd "C-a") 'jss-prompt-beginning-of-line)
 
-(defun jss-insert-prompt (submit-function)
-  (unless (or (bobp)
-              (= (point) (line-beginning-position)))
-    (insert "\n"))
-  (let ((start (point))
-        (inhibit-read-only t))
-    (jss-insert-with-properties (list 'read-only t
-                                      'rear-nonsticky t
-                                      'jss-prompt-marker t
-                                      'jss-prompt-submit-function submit-function)
-                                ">")
-    (jss-insert-with-properties (list 'read-only nil
-                                      'jss-prompt-input t
-                                      'keymap jss-prompt-map) " ")
-    (add-text-properties start (point)
-                         (list 'keymap jss-prompt-map
-                               'jss-prompt t
-                               'jss-prompt-id (incf jss-prompt-counter)))))
+(defvar jss-prompt-counter 0)
 
-(defun jss-prompt-goto-next ()
-  (jss-start-of-next-property-block 'jss-prompt)
-  (jss-start-of-next-property-block 'jss-prompt-input))
+(defclass jss-prompt ()
+  ((submit-function :initarg :submit-function :accessor jss-prompt-submit-function)
+   (id :initform (incfo jss-prompt-counter) :reader jss-prompt-id)
+   (buffer :initarg :buffer :reader jss-prompt-buffer)))
+
+(defun jss-insert-prompt (submit-function)
+  (unless (or (bobp) (= (point) (line-beginning-position)))
+    (insert "\n"))
+  (let ((prompt (make-instance 'jss-prompt
+                               :submit-function submit-function
+                               :buffer (current-buffer)))
+        (inhibit-read-only t))
+    (jss-wrap-with-text-properties (list 'jss-prompt prompt)
+
+      (jss-wrap-with-text-properties (list 'read-only t
+                                           'rear-nonsticky t
+                                           'jss-prompt-marker t)
+        (insert ">"))
+
+      (jss-wrap-with-text-properties (list 'read-only nil
+                                           'jss-prompt-input t
+                                           'keymap jss-prompt-map)
+        (insert " ")))))
+
+(defmethod jss-prompt-start-of-input ((prompt jss-prompt))
+  (save-excursion
+    (goto-char (car (jss-find-property-block 'jss-prompt prompt :test 'eq)))
+    (goto-char (jss-start-of-next-property-block 'jss-prompt-input))
+    (point)))
+
+(defmethod jss-prompt-end-of-input ((prompt jss-prompt))
+  (save-excursion
+    (goto-char (jss-prompt-start-of-input prompt))
+    (goto-char (jss-end-of-current-property-block 'jss-prompt-input))
+    (point)))
+
+(defmethod jss-prompt-start-of-output ((prompt jss-prompt))
+  (save-excursion
+    (goto-char (car (jss-find-property-block 'jss-prompt prompt :test 'eq)))
+    (goto-char (jss-start-of-next-property-block 'jss-prompt-output))
+    (point)))
+
+(defmethod jss-prompt-end-of-output ((prompt jss-prompt))
+  (save-excursion
+    (goto-char (jss-prompt-start-of-output prompt))
+    (goto-char (jss-end-of-current-property-block 'jss-prompt-output))
+    (point)))
 
 (defun jss-before-last-prompt ()
   (goto-char (point-max))
   (jss-end-of-previous-property-block 'jss-prompt)
   (jss-start-of-current-property-block 'jss-prompt))
 
+(defun* jss-prompt-current-prompt (&optional (warn t))
+  "Returns the prompt object around point. Uses some heuristics
+  to figure out what the current prompt is."
+  (save-excursion
+    (block nil
+      (when (get-text-property (point) 'jss-prompt)
+        ;; directly in a prompt
+        (return (get-text-property (point) 'jss-prompt)))
+      (unless (bobp)
+        (backward-char 1)
+        (when (get-text-property (point) 'jss-prompt)
+          (return (get-text-property (point) 'jss-prompt))))
+      (warn "Not currently in a prompt."))))
+
+(defmethod jss-prompt-input-text ((prompt jss-prompt))
+  (with-current-buffer (jss-prompt-buffer prompt)
+    (let* ((location (jss-find-property-block 'jss-prompt prompt :test 'eq))
+           (start (car location)))
+      (goto-char start)
+      (let ((input-start (jss-start-of-next-property-block 'jss-prompt-input))
+            (input-end   (jss-end-of-current-property-block 'jss-prompt-input)))
+        (when (or (< (cdr location) input-start)
+                  (< (cdr location) input-end))
+          (error "prompt-input for prompt %s is outside of the prompt itself." prompt))
+        (goto-char input-start)
+        (buffer-substring-no-properties
+         input-start
+         input-end
+         )))))
+
 (defun jss-prompt-eval-or-newline ()
   (interactive)
   (block nil
+    (let ((prompt (jss-prompt-current-prompt))
+          (js2-errors '()))
 
-    (let (submit-function
-          (start (point))
-          (prompt-id (get-text-property (point) 'jss-prompt-id)))
-      (unless prompt-id
-        
-        (if (get-text-property (1- (point)) 'jss-prompt-id)
-            (backward-char 1)
-            (setf prompt-id (get-text-property (1- (point)) 'jss-prompt-id))
-          (warn "Not in a prompt.")
-          (return)))      
-      ;; find the marker for this prompt and get the submit-function
-      (let ((marker-end (previous-single-property-change (point) 'jss-prompt-marker)))
-        (unless marker-end
-          (error "Unable to find end of marker before %d" (point)))
-        (let ((submit-property (get-text-property (1- marker-end) 'jss-prompt-submit-function)))
-          (if submit-property
-              (setf submit-function submit-property)
-            (error "Missing jss-prompt-submit-function at %s" (point)))))
+      (with-temp-buffer
+        (insert (jss-prompt-input-text prompt))
+        (setf js2-errors (js2-ast-root-errors (js2-parse))))
 
-      (when (get-text-property (point) 'jss-prompt-marker)
-        (goto-char (next-single-property-change (point) 'jss-prompt-marker)))
-      
-      (let ((input-start (save-excursion
-                           (jss-start-of-current-property-block 'jss-prompt-input)))
-            (input-end (save-excursion
-                         (jss-end-of-current-property-block 'jss-prompt-input)))
-            (input-complete-p nil))
-        (save-restriction
-          (narrow-to-region input-start input-end)
-          (setf input-complete-p (null (js2-ast-root-errors (js2-parse))))
-          (if input-complete-p
-              (jss-prompt-submit prompt-id
-                                 submit-function
-                                 input-start input-end)
-            (goto-char start)
-            (jss-prompt-insert-newline)))))))
+      (if js2-errors
+          (progn
+            (insert-and-inherit "\n")
+            (js2-indent-line))
+        (jss-prompt-submit prompt)))))
 
 (defun jss-prompt-eval ()
   (interactive)
-  )
+  (let ((prompt (jss-prompt-current-prompt)))
+    (when prompt
+      (jss-prompt-submit prompt))))
 
-(defun jss-prompt-submit (prompt-id submit-function start end)
+(defmethod jss-prompt-submit ((prompt jss-prompt))
   (let ((inhibit-read-only t))
-
-    (let (start)
-      (jss-start-of-current-property-block 'jss-prompt)
-      (setf start (point))
-      (jss-end-of-current-property-block 'jss-prompt)
-      (add-text-properties start (point) (list 'read-only t)))
-    (unless (= (point) (line-beginning-position))
+    (goto-char (jss-prompt-start-of-input prompt))
+    (jss-wrap-with-text-properties (list 'read-only t)
+      (goto-char (jss-prompt-end-of-input prompt))
       (insert-and-inherit "\n"))
-    (let ((start (point)))
-      (jss-insert-with-properties (list 'jss-prompt-output t)
-                                  "// Evaluating...")
-      (remove-text-properties start (point) (list 'jss-prompt-input)))
+    (jss-wrap-with-text-properties (list 'read-only t
+                                         'jss-prompt-output t
+                                         'jss-prompt prompt)
+      (insert "// Evaluating..."))
+    
     (lexical-let ((current-buffer (current-buffer))
-                  (prompt-id prompt-id))
+                  (prompt prompt))
       (jss-deferred-add-backs
-       (funcall submit-function (buffer-substring-no-properties start end))
+       (funcall (jss-prompt-submit-function prompt)
+                (jss-prompt-input-text prompt))
        (lambda (remote-object)
          (with-current-buffer current-buffer
-           (jss-prompt-update-output prompt-id remote-object)))
+           (jss-prompt-update-output prompt remote-object)
+           ))
        (lambda (error)
          (with-current-buffer current-buffer
-           (jss-prompt-update-output prompt-id error)))))
-    (jss-insert-prompt submit-function)))
+           (jss-prompt-update-output prompt error)))))
+    (goto-char (jss-prompt-end-of-output prompt))
+    (jss-insert-prompt (jss-prompt-submit-function prompt))))
 
-(defun jss-prompt-update-output (prompt-id remote-object)
+(defmethod jss-prompt-update-output ((prompt jss-prompt) remote-object)
   (save-excursion
-    (let ((prompt-location (jss-find-property-block 'jss-prompt-id prompt-id))
-          (inhibit-read-only t))
-      (goto-char (cdr prompt-location))
-      (unless (get-text-property (point) 'jss-prompt-output)
-        (backward-char 1)
-        (unless (get-text-property (point) 'jss-prompt-output)
-          (error "Unable to find jss-prompt-output for prompt %s (currently at %s)" prompt-id (point))))
-      (jss-start-of-current-property-block 'jss-prompt-output)
-      (delete-region (point) (cdr prompt-location))
-      (jss-remote-value-insert remote-object))))
-
-(defun jss-prompt-insert-newline ()
-  (insert "\n")
-  (js2-indent-line))
+    (let ((inhibit-read-only t))
+      (goto-char (jss-prompt-start-of-output prompt))
+      (delete-region (point) (jss-prompt-end-of-output prompt))
+      (jss-wrap-with-text-properties (list 'read-only t
+                                           'jss-prompt prompt
+                                           'jss-prompt-output t)
+       (jss-remote-value-insert remote-object)))))
 
 (defun jss-prompt-beginning-of-line (&optional n)
   (interactive "P")

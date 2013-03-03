@@ -31,15 +31,18 @@
 
 (defun jss-invoke-property (property-name)
   (when (get-text-property (point) property-name)
-    (call-interactively (get-text-property (point) property-name))))
+    (call-interactively (get-text-property (point) property-name))
+    t))
 
 (defun jss-invoke-primary-action ()
   (interactive)
-  (jss-invoke-property 'jss-primary-action))
+  (or (jss-invoke-property 'jss-primary-action)
+      (call-interactively 'self-insert-command)))
 
 (defun jss-invoke-secondary-action ()
   (interactive)
-  (jss-invoke-property 'jss-secondary-action))
+  (or (jss-invoke-property 'jss-secondary-action)
+      (call-interactively 'self-insert-command)))
 
 (defun jss-next-button ()
   (interactive)
@@ -136,7 +139,7 @@
   (block nil
     (while (get-text-property (point) property-name)
       (when (= (point) (point-min))
-        (return))
+        (return (point)))
       (backward-char 1))
     (forward-char 1))
   (point))
@@ -186,7 +189,6 @@
     `(let ((,start (point)))
        (prog1
            (progn ,@body)
-         (message "Adding text properties %s from %s to %s in %s" (prin1-to-string ,properties) ,start (point) (current-buffer))
          (let ((inhibit-read-only t))
            (add-text-properties ,start (point) ,properties))))))
 
