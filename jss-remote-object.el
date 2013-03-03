@@ -3,10 +3,8 @@
   (save-excursion
     (let ((start (point))
           (inhibit-read-only t))
-      (insert-text-button text
-                          'action (lambda (button) (call-interactively 'jss-console-expand-js-object))
-                          'read-only t
-                          'jss-js-object-id identifier)
+      (jss-insert-button text 'jss-console-expand-js-object
+                         :other-properties (list 'jss-js-object-id identifier))
       (insert "\n"))))
 
 (defun jss-expand-remote-object ()

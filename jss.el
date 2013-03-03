@@ -1,13 +1,60 @@
 (require 'js2-mode)
 
-(defvar jss-super-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map (make-composed-keymap button-buffer-map text-mode-map))
-    map))
-
 (define-derived-mode jss-super-mode text-mode "Generic JSS Mode"
   "Functionality common to all JSS modes."
   t)
+
+(define-key jss-super-mode-map (kbd "TAB") 'jss-next-button)
+(define-key jss-super-mode-map (kbd "RET") 'jss-invoke-primary-action)
+(define-key jss-super-mode-map (kbd "SPC") 'jss-invoke-secondary-action)
+
+(defface jss-button-face '((t :underline t))
+  "Face used for jss-buttons.")
+
+(defun jss-insert-button (label &rest jss-add-text-button-args)
+  (let ((start (point)))
+    (insert-and-inherit label)
+    (apply 'jss-add-text-button start (point) jss-add-text-button-args)
+    label))
+
+(defun* jss-add-text-button (start end primary-action &key secondary-action other-properties)
+  (add-text-properties start end
+                       (append (list 'jss-button t
+                                     'face 'jss-button-face
+                                     'read-only t
+                                     'rear-nonsticky t)
+                               (when primary-action
+                                 (list 'jss-primary-action primary-action))
+                               (when secondary-action
+                                 (list 'jss-secondary-action secondary-action))
+                               other-properties)))
+
+(defun jss-invoke-property (property-name)
+  (when (get-text-property (point) property-name)
+    (call-interactively (get-text-property (point) property-name))))
+
+(defun jss-invoke-primary-action ()
+  (interactive)
+  (jss-invoke-property 'jss-primary-action))
+
+(defun jss-invoke-secondary-action ()
+  (interactive)
+  (jss-invoke-property 'jss-secondary-action))
+
+(defun jss-next-button ()
+  (interactive)
+  (when (get-text-property (point) 'jss-button)
+    ;; in a button, move past it
+    (goto-char (or (next-single-property-change (point) 'jss-button)
+                   (point-max))))
+  (let ((next-button (next-single-property-change (point) 'jss-button)))
+    (if next-button
+        (goto-char next-button)
+      (goto-char (point-min))
+      (unless (get-text-property (point) 'jss-button) ; if buffer starts with a button just stay here
+        (setf next-button (next-single-property-change (point) 'jss-button))
+        (when next-button
+          (goto-char next-button))))))
 
 (defun jss-log-event (event)
   (with-current-buffer (get-buffer-create " *jss-events*")
@@ -32,7 +79,14 @@
       (jss-comment-char "^$"))
     (when (string-match "^[ \t\r\n\f]" string)
       (jss-comment-char "^"))
-    (insert string)
+    (loop
+     for char across string
+     do (case char
+          (?\t (jss-comment-char "\\t"))
+          (?\n (jss-comment-char "\\n"))
+          (?\r (jss-comment-char "\\r"))
+          (?\f (jss-comment-char "\\f"))
+          (t (insert (char-to-string char)))))
     (when (string-match "[ \t\r\n\f]$" string)
       (jss-comment-char "$"))))
 
@@ -97,27 +151,27 @@
       (forward-char 1)))
   (point))
 
-(defun jss-find-property-block (property-name property-value)
+(defun* jss-find-property-block (property-name property-value &key (test 'equal))
   (save-excursion
     (goto-char (point-max))
     (let (block-start block-end)
 
-      (while (not (equal (get-text-property (point) property-name) property-value))
+      (while (not (funcall test (get-text-property (point) property-name) property-value))
         (when (= (point) (point-min))
-          (error "Unable to find block with property %s equal to %s." property-name property-value))
+          (error "Unable to find block with property %s %s to %s in buffer %s." property-name test property-value (current-buffer)))
         (backward-char 1))
       (setf block-end (min (1+ (point)) (point-max)))
 
       (block nil
-        (while (and (equal (get-text-property (point) property-name) property-value)
+        (while (and (funcall test (get-text-property (point) property-name) property-value)
                     (< (point-min) (point)))
           (backward-char 1)))
       (setf block-start (min (1+ (point)) (point-max)))
 
       (cons block-start block-end))))
 
-(defun jss-delete-property-block (property-name property-value)
-  (let ((location (jss-find-property-block property-name property-value))
+(defun* jss-delete-property-block (property-name property-value &key (test 'equal))
+  (let ((location (jss-find-property-block property-name property-value :test test))
         (inhibit-read-only t))
     (delete-region (car location) (cdr location))))
 
@@ -125,6 +179,23 @@
   (let ((start (point)))
     (insert-and-inherit (apply 'format format-control format-args))
     (add-text-properties start (point) property-list)))
+
+(defmacro jss-wrap-with-text-properties (properties &rest body)
+  (declare (indent 1))
+  (let ((start (gensym)))
+    `(let ((,start (point)))
+       (prog1
+           (progn ,@body)
+         (message "Adding text properties %s from %s to %s in %s" (prin1-to-string ,properties) ,start (point) (current-buffer))
+         (let ((inhibit-read-only t))
+           (add-text-properties ,start (point) ,properties))))))
+
+(defun jss-limit-string-length (string max-length)
+  (if (< max-length (length string))
+      (format "%s...[snip]...%s"
+              (substring string 0 (/ max-length 2))
+              (substring string (- (length string) (/ max-length 2)) (length string)))
+      string))
 
 (require 'jss-browser-api)
 (require 'jss-browser-chrome)

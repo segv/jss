@@ -5,9 +5,12 @@
 
 (defvar jss-prompt-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "RET") 'jss-prompt-eval-or-newline)
-    (define-key map (kbd "C-a") 'jss-prompt-beginning-of-line)
+    (set-keymap-parent map js2-mode-map)
     map))
+
+(define-key jss-prompt-map (kbd "RET") 'jss-prompt-eval-or-newline)
+(define-key jss-prompt-map (kbd "C-c C-c") 'jss-prompt-eval)
+(define-key jss-prompt-map (kbd "C-a") 'jss-prompt-beginning-of-line)
 
 (defun jss-insert-prompt (submit-function)
   (unless (or (bobp)
@@ -20,7 +23,9 @@
                                       'jss-prompt-marker t
                                       'jss-prompt-submit-function submit-function)
                                 ">")
-    (jss-insert-with-properties (list 'read-only nil 'jss-prompt-input t) " ")
+    (jss-insert-with-properties (list 'read-only nil
+                                      'jss-prompt-input t
+                                      'keymap jss-prompt-map) " ")
     (add-text-properties start (point)
                          (list 'keymap jss-prompt-map
                                'jss-prompt t
@@ -75,6 +80,10 @@
                                  input-start input-end)
             (goto-char start)
             (jss-prompt-insert-newline)))))))
+
+(defun jss-prompt-eval ()
+  (interactive)
+  )
 
 (defun jss-prompt-submit (prompt-id submit-function start end)
   (let ((inhibit-read-only t))

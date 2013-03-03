@@ -261,6 +261,15 @@
     (lambda (err)
       (error "Failed to resume execution: %s" err))))
 
+(defmethod jss-debugger-cleanup ((d jss-chrome-debugger))
+  (lexical-let ((d d)
+                (object-group (jss-chrome-object-group d)))
+    (jss-deferred-add-errorback
+     (jss-chrome-send-request (jss-debugger-tab d)
+                              '("Runtime.releaseObjectGroup" `(objectGroup . ,object-group)))
+     (lambda (err)
+       (error "Failed to release object group %s on %s." object-group d)))))
+
 (defclass jss-chrome-stack-frame (jss-generic-stack-frame)
   ((properties :initarg :properties)))
 
@@ -269,14 +278,6 @@
 
 (defmethod jss-frame-function-name ((frame jss-chrome-stack-frame))
   (cdr (assoc 'functionName (slot-value frame 'properties))))
-
-(defmethod jss-frame-source-url ((frame jss-chrome-stack-frame))
-  (let* ((loc (cdr (assoc 'location (slot-value frame 'properties))))
-         (scriptId (cdr (assoc 'scriptId loc)))
-         (script (jss-tab-get-script (jss-debugger-tab (slot-value frame 'debugger)) scriptId)))
-    (if script
-        (cdr (assoc 'url script))
-        scriptId)))
 
 (defmethod jss-frame-source-position ((frame jss-chrome-stack-frame))
   (let* ((loc (cdr (assoc 'location (slot-value frame 'properties))))
@@ -288,7 +289,7 @@
          (url (cdr (assoc 'url script))))
     (if url
         (format "%s:%s:%s" url lineNumber columnNumber)
-      "no source location")))
+      nil)))
 
 (define-jss-chrome-notification-handler "Debugger.breakpointResolved" (breakpointId location)
   t)
@@ -530,6 +531,12 @@
       (cdr (assoc 'headers (cdr (assoc 'redirectResponse (jss-chrome-io-properties io)))))
       (cdr (assoc 'headers (jss-chrome-io-response io)))))
 
+(defmethod jss-io-response-content-type ((io jss-chrome-io))
+  (cdr (assoc 'Content-Type (jss-io-response-headers io))))
+
+(defmethod jss-io-response-content-length ((io jss-chrome-io))
+  (cdr (assoc 'Content-Length (jss-io-response-headers io))))
+
 (defmethod jss-io-response-data ((io jss-chrome-io))
   (if (jss-chrome-io-responseBody io)
       (let ((base64-p (cdr (assoc 'base64Encoded (jss-chrome-io-responseBody io))))
@@ -553,11 +560,11 @@
   (cdr (assoc 'requestId (jss-chrome-io-properties io))))
 
 (define-jss-chrome-notification-handler "Network.requestWillBeSent" (requestId loaderId documentURL request timestamp initiator stackTrace redirectResponse)
-  (let ((io (jss-tab-register-io tab requestId
-                                 (make-instance 'jss-chrome-io
-                                                :properties params
-                                                :start-time timestamp
-                                                :lifecycle (list (list :sent timestamp))))))
+  (let ((io (make-instance 'jss-chrome-io
+                           :properties params
+                           :start-time timestamp
+                           :lifecycle (list (list :sent timestamp)))))
+    (setf (jss-tab-get-io tab requestId) io)
     (jss-console-insert-request console io)))
 
 (defmacro with-existing-io (io-id &rest body)

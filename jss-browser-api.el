@@ -84,7 +84,7 @@ existing tab objects.")
 
 (defmethod jss-console-buffer ((console jss-generic-console))
   (get-buffer-create
-   (format "*JSS-Console/%s*" (jss-tab-id (jss-console-tab console)))))
+   (format "*JSS Console/%s*" (jss-tab-id (jss-console-tab console)))))
 
 (defgeneric jss-console-insert-io (console io))
 
@@ -157,12 +157,15 @@ existing tab objects.")
       (jss-debugger-mode))
     (switch-to-buffer-other-window (current-buffer))))
 
+(defgeneric jss-debugger-cleanup (debugger))
+
+(defmethod jss-debugger-cleanup ((debugger jss-generic-debugger))
+  t)
+
 (defclass jss-generic-stack-frame ()
   ((debugger :initarg :debugger :accessor jss-frame-debugger)))
 
 (defgeneric jss-frame-function-name (frame))
-
-(defgeneric jss-frame-source-url (frame))
 
 (defgeneric jss-frame-source-position (frame))
 

@@ -42,18 +42,21 @@ etc.) to the choosen tab."
        (with-current-buffer jss-browser-buffer
          (let ((inhibit-read-only t))
            (jss-browser-delete-and-insert-header)
-           (dolist (tab (jss-browser-tabs browser))
-             (insert (format "%s.%s - %s\n" (jss-tab-id tab) (jss-tab-title tab) (jss-tab-url tab)))
-             (when (jss-tab-debugger-p tab)
-               (insert "  ")
-               (insert-text-button (if (jss-tab-console tab)
-                                       "[ goto console ]"
-                                     "[ open console ]")
-                                   'action (lambda (button) (call-interactively 'jss-tab-goto-console))
-                                   'jss-tab-id (jss-tab-id tab))
-               (insert "\n")))
-           (goto-char (point-min))
-           (forward-button 1))))
+           (if (jss-browser-tabs browser)
+               (progn
+                 (dolist (tab (jss-browser-tabs browser))
+                   (insert (format "%s.%s - %s\n" (jss-tab-id tab) (jss-tab-title tab) (jss-tab-url tab)))
+                   (when (jss-tab-debugger-p tab)
+                     (insert "  ")
+                     (jss-insert-button (if (jss-tab-console tab)
+                                            "[ goto console ]"
+                                          "[ open console ]")
+                                         'jss-tab-goto-console
+                                         :other-properties (list 'jss-tab-id (jss-tab-id tab)))
+                     (insert "\n")))
+                 (goto-char (point-min))
+                 (jss-next-button))
+             (insert "No tabs found.")))))
      (lambda (message)
        (with-current-buffer jss-browser-buffer
          (let ((inhibit-read-only t))

@@ -16,7 +16,6 @@ Keys
   C-c C-r - reload tab's page
   RET - evaluate prompt or follow link
   C-c C-o - clear console
-  C-a - beginnnig of line (respecting prompt prefix)
 
   C-c C-p - previous input
   C-c C-n - next input
@@ -32,7 +31,6 @@ Keys
   t)
 
 (define-key jss-console-mode-map (kbd "C-c C-r") 'jss-console-ensure-connection)
-(define-key jss-console-mode-map (kbd "C-a") 'jss-console-beginning-of-line)
 (define-key jss-console-mode-map (kbd "C-c C-o") 'jss-console-clear-buffer)
 (define-key jss-console-mode-map (kbd "C-c C-r") 'jss-console-reload-page)
 
@@ -62,17 +60,6 @@ Keys
           (let ((jss-console console))
             (jss-console-mode)))
         console)))
-
-(defun jss-console-insert-prompt (&rest other-properties)
-  (let ((inhibit-read-only t)
-        (start (point)))
-    (insert "> ")
-    (add-text-properties start (point)
-                         (list*
-                          'read-only t
-                          'jss-console-prompt t
-                          'rear-nonsticky t
-                          other-properties))))
 
 (defun jss-console-ensure-connection ()
   (interactive)
@@ -117,40 +104,26 @@ Keys
             (setf properties (list* 'read-only t properties)))
           (add-text-properties start (point) properties))))))
 
-(defun jss-limit-string-length (string max-length)
-  (if (< max-length (length string))
-      (format "%s...[snip]...%s"
-              (substring string 0 (/ max-length 2))
-              (substring string (- (length string) (/ max-length 2)) (length string)))
-      string))
-
 (defmethod jss-console-insert-io-line ((console jss-generic-console) io)
   (with-current-buffer (jss-console-buffer console)
     (save-excursion
       (jss-before-last-prompt)
-      (let ((start (point))
-            (inhibit-read-only t))
-        (insert "// log // "
-                (ecase (first (first (jss-io-lifecycle io)))
-                  (:sent "Requested")
-                  (:loading-finished "Loaded")
-                  (:data-received "Data for")
-                  (:loading-failed "Failed")
-                  (:served-from-cache "From cache")
-                  (:served-from-memory-cache "From memory cache")
-                  (:response-received "Got response"))
-                " ")
-        (insert (jss-io-id io) " ")
-        (let ((button-start (point)))
-          (insert (jss-limit-string-length (jss-io-request-url io) 80))
-          (make-text-button button-start (point)
-                            'action (lambda (button)
-                                      (call-interactively 'jss-console-switch-to-io-inspector))))
-        
-        (insert "\n")
-        (add-text-properties start (point)
-                             (list 'read-only t
-                                   'jss-io-id (jss-io-id io)))))))
+      (jss-wrap-with-text-properties `(jss-io-id ,(jss-io-id io) read-only t)
+        (let ((inhibit-read-only t))
+          (insert "// log // "
+                  (ecase (first (first (jss-io-lifecycle io)))
+                    (:sent "Requested")
+                    (:loading-finished "Loaded")
+                    (:data-received "Data for")
+                    (:loading-failed "Failed")
+                    (:served-from-cache "From cache")
+                    (:served-from-memory-cache "From memory cache")
+                    (:response-received "Got response"))
+                  " ")
+          (insert (jss-io-id io) " ")
+          (jss-insert-button (jss-limit-string-length (jss-io-request-url io) 80)
+                             'jss-console-switch-to-io-inspector)
+          (insert "\n"))))))
 
 (defmethod jss-console-insert-request ((console jss-generic-console) io)
   (jss-console-insert-io-line console io))
