@@ -113,6 +113,10 @@ existing tab objects.")
 (defgeneric jss-io-response-status (io)
   "Either an integer specifying the status code or nil specifying that we're still waiting for the response.")
 
+(defgeneric jss-io-response-content-type (io))
+
+(defgeneric jss-io-response-content-length (io))
+
 (defgeneric jss-tab-get-io (tab io-id))
 
 (defmethod jss-tab-get-io ((tab jss-generic-tab) io-id)
@@ -144,17 +148,19 @@ existing tab objects.")
 
 (defgeneric jss-debugger-stack-frames (debugger))
 
-(defgeneric jss-debugger-message (debugger))
+(defgeneric jss-debugger-exception (debugger))
 
-(defgeneric jss-debugger-continue (debugger))
+(defgeneric jss-debugger-resume    (debugger))
+(defgeneric jss-debugger-step-into (debugger))
+(defgeneric jss-debugger-step-over (debugger))
+(defgeneric jss-debugger-step-out  (debugger))
 
 ;;; nb: do NOT name the debugger parameter debugger. it messes with emacs in strange ways.
 (defmethod jss-tab-open-debugger ((tab jss-generic-tab) dbg)
   (setf (jss-debugger-buffer dbg) (get-buffer-create (generate-new-buffer-name "*JSS Debugger*"))
         (jss-debugger-tab dbg) tab)
   (with-current-buffer (jss-debugger-buffer dbg)
-    (let ((jss-debugger dbg))
-      (jss-debugger-mode))
+    (jss-debugger-mode* dbg)
     (switch-to-buffer-other-window (current-buffer))))
 
 (defgeneric jss-debugger-cleanup (debugger))
@@ -169,65 +175,67 @@ existing tab objects.")
 
 (defgeneric jss-frame-source-position (frame))
 
-(defclass jss-generic-remote-value () ())
+(defgeneric jss-frame-restart (frame))
 
-(defgeneric jss-remote-value-insert (remote-object))
+(defvar jss-remote-value-counter 0)
+
+(defclass jss-generic-remote-value ()
+  ((id :accessor jss-remote-value-id
+       :initform (incf jss-remote-value-counter)
+       :initarg :id)))
+
+(defgeneric jss-remote-value-string (remote-object))
 
 (defclass jss-generic-remote-primitive (jss-generic-remote-value)
   ((value :initarg :value :accessor jss-remote-primitive-value)))
 
 (defclass jss-generic-remote-boolean (jss-generic-remote-primitive) ())
 
-(defclass jss-generic-remote-true (jss-generic-remote-primitive) ())
+(defclass jss-generic-remote-true (jss-generic-remote-boolean) ())
+(defmethod jss-remote-value-string ((object jss-generic-remote-true)) "true")
 
-(defmethod jss-remote-value-insert ((object jss-generic-remote-true))
-  (insert "true"))
-
-(defclass jss-generic-remote-false (jss-generic-remote-primitive) ())
-
-(defmethod jss-remote-value-insert ((object jss-generic-remote-false))
-  (insert "false"))
+(defclass jss-generic-remote-false (jss-generic-remote-boolean) ())
+(defmethod jss-remote-value-string ((object jss-generic-remote-false)) "false")
 
 (defclass jss-generic-remote-string (jss-generic-remote-primitive) ())
-
-(defmethod jss-remote-value-insert ((string jss-generic-remote-string))
-  (insert-and-inherit (prin1-to-string (jss-remote-primitive-value string))))
+(defmethod jss-remote-value-string ((string jss-generic-remote-string))
+  (prin1-to-string (jss-remote-primitive-value string)))
 
 (defclass jss-generic-remote-number (jss-generic-remote-primitive) ())
-
-(defmethod jss-remote-value-insert ((number jss-generic-remote-number))
+(defmethod jss-remote-value-string ((number jss-generic-remote-number))
   (let ((value (jss-remote-primitive-value number)))
     (if (integerp value)
-        (insert-and-inherit (format "%d" value))
-      (insert-and-inherit (format "%g" value)))))
+        (format "%d" value)
+      (format "%g" value))))
 
 (defclass jss-generic-remote-NaN (jss-generic-remote-primitive) ())
+(defmethod jss-remote-value-string ((object jss-generic-remote-NaN)) "NaN")
 
-(defmethod jss-remote-value-insert ((object jss-generic-remote-NaN))
-  (insert "NaN"))
+(defclass jss-generic-remote-infinitiy (jss-generic-remote-primitive) ())
+(defmethod jss-remote-value-string ((object jss-generic-remote-infinitiy)) "+Inf")
 
 (defclass jss-generic-remote-undefined (jss-generic-remote-primitive) ())
+(defmethod jss-remote-value-string ((object jss-generic-remote-undefined)) "undefined")
 
-(defmethod jss-remote-value-insert ((object jss-generic-remote-undefined))
-  (insert "undefined"))
+(defclass jss-generic-remote-no-value (jss-generic-remote-primitive) ())
+(defmethod jss-remote-value-string ((object jss-generic-remote-no-value)) "no value.")
 
-(defclass jss-generic-remote-object (jss-generic-remote-value) ())
+(defclass jss-generic-remote-non-primitive (jss-generic-remote-value) ())
 
-(defmethod jss-remote-value-insert ((object jss-generic-remote-object))
+(defclass jss-generic-remote-object (jss-generic-remote-non-primitive) ())
+
+(defmethod jss-remote-value-string ((object jss-generic-remote-object))
   (let ((class-name  (jss-remote-object-class-name object))
         (label  (jss-remote-object-label object)))
     (if (string= label class-name)
-        (insert (format "[%s]" label))
-      (insert (format "[%s %s]" class-name label)))))
+        (format "[%s]" label)
+      (format "[%s %s]" class-name label))))
 
-(defclass jss-generic-remote-function (jss-generic-remote-value) ())
+(defmethod jss-remote-object-get-properties (object))
+
+(defclass jss-generic-remote-function (jss-generic-remote-non-primitive) ())
 
 (defclass jss-generic-remote-array (jss-generic-remote-object) ())
-
-(defclass jss-generic-remote-no-value (jss-generic-remote-primitive) ())
-
-(defmethod jss-remote-value-insert ((object jss-generic-remote-NaN))
-  (insert "no value."))
 
 (provide 'jss-browser-api)
 

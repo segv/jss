@@ -1,4 +1,5 @@
 ;;; https://developers.google.com/chrome-developer-tools/docs/protocol/1.0/debugger#events
+;;; http://trac.webkit.org/browser/trunk/Source/WebCore/inspector/Inspector.json
 (require 'url)
 (require 'websocket)
 (require 'json)
@@ -13,10 +14,9 @@
                      (read-from-minibuffer "Post: " "9222")))
   (with-current-buffer (get-buffer-create (format "*Google Chrome@%s:%s*" host port))
     (switch-to-buffer (current-buffer))
-    (let ((jss-browser (make-instance 'jss-chrome-browser
+    (jss-browser-mode* (make-instance 'jss-chrome-browser
                                       :host host
-                                      :port port)))
-      (jss-browser-mode))))
+                                      :port port))))
 
 ;;; The browser API implementation
 
@@ -252,21 +252,36 @@
    (reason :initarg :reason)
    (data :initarg :data)))
 
-(defmethod jss-debugger-message ((d jss-chrome-debugger))
-  (format "%s %s" (slot-value d 'reason) (slot-value d 'data)))
+(defmethod jss-debugger-exception ((d jss-chrome-debugger))
+  (make-jss-chrome-remote-object (slot-value d 'data)))
 
-(defmethod jss-debugger-continue ((d jss-chrome-debugger))
+(defmethod jss-debugger-insert-message ((d jss-chrome-debugger))
+  (insert (slot-value d 'reason)))
+
+(defun jss-chrome-send-request-or-error (target request error-control &rest error-args)
   (jss-deferred-add-errorback
-    (jss-chrome-send-request (jss-debugger-tab d) '("Debugger.resume"))
-    (lambda (err)
-      (error "Failed to resume execution: %s" err))))
+   (jss-chrome-send-request target request)
+   (lambda (err)
+     (apply 'error (concat error-control ":%s") (append error-args err)))))
+
+(defmethod jss-debugger-resume ((d jss-chrome-debugger))
+  (jss-chrome-send-request-or-error (jss-debugger-tab d) '("Debugger.resume") "Failed to resume execution"))
+
+(defmethod jss-debugger-step-into ((d jss-chrome-debugger))
+  (jss-chrome-send-request-or-error (jss-debugger-tab d) '("Debugger.stepInto") "Failed to step into"))
+
+(defmethod jss-debugger-step-out ((d jss-chrome-debugger))
+  (jss-chrome-send-request-or-error (jss-debugger-tab d) '("Debugger.stepOut") "Failed to step out"))
+
+(defmethod jss-debugger-step-over ((d jss-chrome-debugger))
+  (jss-chrome-send-request-or-error (jss-debugger-tab d) '("Debugger.stepOver") "Failed to step over"))
 
 (defmethod jss-debugger-cleanup ((d jss-chrome-debugger))
   (lexical-let ((d d)
                 (object-group (jss-chrome-object-group d)))
     (jss-deferred-add-errorback
      (jss-chrome-send-request (jss-debugger-tab d)
-                              '("Runtime.releaseObjectGroup" `(objectGroup . ,object-group)))
+                              (list "Runtime.releaseObjectGroup" `(objectGroup . ,object-group)))
      (lambda (err)
        (error "Failed to release object group %s on %s." object-group d)))))
 
@@ -298,7 +313,7 @@
   t)
 
 (define-jss-chrome-notification-handler "Debugger.paused" (callFrames reason data)
-  (jss-console-format-message console "// ERROR // %s" reason)
+  (jss-console-format-message console "// ERROR // Debugger paused on %s" reason)
   (let ((jss-debugger (make-instance 'jss-chrome-debugger
                                      :reason reason
                                      :data (cond 
@@ -370,23 +385,24 @@
    (jss-chrome-send-request tab
                             `("Runtime.evaluate"
                               (expression . ,js-code)
-                              (objectGroup . ,(jss-chrome-object-group tab))))
+                              (objectGroup . ,(jss-chrome-object-group tab))
+                              (generatePreview . t)))
    (lambda (result)
-     (make-jss-chrome-remote-object result))
+     (make-jss-chrome-remote-object (cdr (assoc 'result result))))
    (lambda (response)
      (make-jss-chrome-evaluation-error response))))
 
-(defclass jss-chrome-evaluation-error ()
+(defclass jss-chrome-evaluation-error (jss-generic-remote-object)
   ((properties :initarg :properties)))
 
 (defun make-jss-chrome-evaluation-error (properties)
   (make-instance 'jss-chrome-evaluation-error :properties properties))
 
-(defmethod jss-remote-value-insert ((error jss-chrome-evaluation-error))
-  (insert "// error // "
-          (format "code: %s; " (cdr (assoc 'code (slot-value error 'properties))))
-          (format "message: %s; " (cdr (assoc 'message (slot-value error 'properties))))
-          (format "data: %s; " (prin1-to-string (cdr (assoc 'data (slot-value error 'properties)))))))
+(defmethod jss-remote-value-string ((error jss-chrome-evaluation-error))
+  (format "// error // code: %s; message: %s; data: %s"
+          (cdr (assoc 'code (slot-value error 'properties)))
+          (cdr (assoc 'message (slot-value error 'properties)))
+          (prin1-to-string (cdr (assoc 'data (slot-value error 'properties))))))
 
 (defmethod jss-evaluate ((frame jss-chrome-stack-frame) js-code)
   (jss-deferred-then
@@ -394,19 +410,12 @@
                             `("Debugger.evaluateOnCallFrame"
                               (expression . ,js-code)
                               (callFrameId . ,(jss-chrome-stack-frame-id frame))
-                              (objectGroup . ,(jss-chrome-object-group frame))))
+                              (objectGroup . ,(jss-chrome-object-group frame))
+                              (generatePreview . t)))
    (lambda (result)
-     (make-jss-chrome-remote-object result))
+     (make-jss-chrome-remote-object (cdr (assoc 'result result))))
    (lambda (response)
      (make-jss-chrome-evaluation-error response))))
-
-(defclass jss-chrome-remote-value      (jss-generic-remote-value) ())
-(defclass jss-chrome-remote-true       (jss-generic-remote-true) ())
-(defclass jss-chrome-remote-false      (jss-generic-remote-true) ())
-(defclass jss-chrome-remote-string     (jss-generic-remote-string) ())
-(defclass jss-chrome-remote-number     (jss-generic-remote-number) ())
-(defclass jss-chrome-remote-NaN        (jss-generic-remote-NaN) ())
-(defclass jss-chrome-remote-undefined  (jss-generic-remote-undefined) ())
 
 (defclass jss-chrome-remote-object-mixin ()
   ((description :initarg :description :accessor jss-chrome-remote-object-description)
@@ -418,6 +427,17 @@
 
 (defmethod jss-remote-object-label ((o jss-chrome-remote-object-mixin))
   (jss-chrome-remote-object-description o))
+
+(defmethod jss-remote-object-get-properties ((object jss-chrome-remote-object-mixin) tab)
+  (jss-deferred-then
+   (jss-chrome-send-request tab (list "Runtime.getProperties"
+                                      (cons 'objectId (jss-chrome-remote-object-id object))
+                                      (cons 'ownProperties t)))
+   (lambda (response)
+     (loop
+      for prop across (cdr (assoc 'result response))
+      collect (cons (cdr (assoc 'name prop))
+                    (make-jss-chrome-remote-object (cdr (assoc 'value prop))))))))
 
 (defclass jss-chrome-remote-object (jss-generic-remote-object jss-chrome-remote-object-mixin) ())
 
@@ -435,28 +455,38 @@
   ((description :initarg :description :accessor jss-chrome-remote-object-description)
    (objectId    :initarg :objectId    :accessor jss-chrome-remote-object-id)))
 
-(defclass jss-chrome-remote-no-value (jss-generic-remote-no-value) ())
+(defmethod jss-remote-value-string ((func jss-chrome-remote-function))
+  (replace-regexp-in-string "[ \t\n\r\f]+"
+                            " "
+                            (jss-chrome-remote-object-description func)))
 
 (defun make-jss-chrome-remote-object (result)
-  (let* ((result (cdr (assoc 'result result)))
-         (type (cdr (assoc 'type result)))
+  (let* ((type (cdr (assoc 'type result)))
          (value (cdr (assoc 'value result))))
     (if result
         (cond
          ((string= type "boolean")
           (make-instance (ecase value
-                           ((t) 'jss-chrome-remote-true)
-                           (:json-false 'jss-chrome-remote-false))))
+                           ((t) 'jss-generic-remote-true)
+                           (:json-false 'jss-generic-remote-false))))
          
          
          ((string= type "number")
-          (make-instance 'jss-chrome-remote-number :value value))
+          (cond
+           (value
+            (make-instance 'jss-generic-remote-number :value value))
+           ((string= "Infinity" (cdr (assoc 'description result)))
+            (make-instance 'jss-generic-remote-infinitiy))
+           ((string= "NaN" (cdr (assoc 'description result)))
+            (make-instance 'jss-generic-remote-NaN))
+           (t
+             (error "Got number, not infinity, but no value :("))))
          
          ((string= type "string")
-          (make-instance 'jss-chrome-remote-string :value value))
+          (make-instance 'jss-generic-remote-string :value value))
          
          ((string= type "undefined")
-          (make-instance 'jss-chrome-remote-undefined))
+          (make-instance 'jss-generic-remote-undefined))
          
          ((string= type "function")
           (make-instance 'jss-chrome-remote-function
@@ -479,7 +509,7 @@
          
          (t
           (error "Unknown result type %s" type)))
-      (make-instance 'jss-chrome-remote-no-value))))
+      (make-instance 'jss-generic-remote-no-value))))
 
 (defmethod jss-get-object-properties ((tab jss-chrome-tab) object-id)
   (jss-deferred-then (jss-chrome-send-request (jss-console-tab console)
@@ -532,10 +562,10 @@
       (cdr (assoc 'headers (jss-chrome-io-response io)))))
 
 (defmethod jss-io-response-content-type ((io jss-chrome-io))
-  (cdr (assoc 'Content-Type (jss-io-response-headers io))))
+  (cdr (assoc 'mimeType (jss-chrome-io-response io))))
 
 (defmethod jss-io-response-content-length ((io jss-chrome-io))
-  (cdr (assoc 'Content-Length (jss-io-response-headers io))))
+  (cdr (assoc 'content-length (jss-io-response-headers io))))
 
 (defmethod jss-io-response-data ((io jss-chrome-io))
   (if (jss-chrome-io-responseBody io)
@@ -630,6 +660,7 @@
                 :type type
                 :response response)
           (jss-io-lifecycle io))
+    (message "Setting response of %s to %s." io response)
     (setf (jss-chrome-io-response io) response)
     
    (jss-console-update-request-message console io)))

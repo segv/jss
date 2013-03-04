@@ -37,21 +37,19 @@
     (jss-section-marker)
         
     (insert "Response Data: ")
-    (when (cdr (assoc 'Content-Type (jss-io-response-headers jss-io)))
+    (jss-insert-button "[view raw]" 'jss-toggle-response-data-raw)
+    (when (jss-io-response-content-type jss-io)
       (insert "type: " (jss-io-response-content-type jss-io)))
-    (when (cdr (assoc 'Content-Length (jss-io-response-headers jss-io)))
+    (when (jss-io-response-content-length jss-io)
       (insert "length: " (jss-io-response-content-length jss-io)))
-    (jss-insert-button "[view raw]" 'jss-toggle-response-data-raw) (insert "\n")
     (let ((data (jss-io-response-data jss-io)))
       (when data
-        (insert (format "; char length: %d\n" (length data)))
-        (insert (jss-io-response-data jss-io))))
-    (insert "\n")
+        (jss-io-insert-response-data jss-io)))
+    
     (jss-section-marker))
 
   (read-only-mode 1)
-  (goto-char (point-min))
-  t)
+  (goto-char (point-min)))
 
 (define-key jss-io-mode-map (kbd "q") (lambda () (interactive) (kill-buffer (current-buffer))))
 
@@ -73,7 +71,7 @@
       (dolist (header headers)
         (let ((start (point)))
           (when indent
-            (insert make-string indent ?\s))
+            (insert (make-string indent ?\s)))
           (jss-insert-with-highlighted-whitespace (car header))
           (insert ": ")
           (insert (make-string (- longest-key (- (point) start)) ?\s))
@@ -89,5 +87,28 @@
       (let ((jss-io io))
         (jss-io-mode)))
     (display-buffer (jss-io-buffer io))))
+
+(defmethod jss-io-insert-response-data ((io jss-generic-io))
+  (let ((content-type (jss-io-response-content-type io)))
+    (cond
+     ((string= "text/html" content-type)
+      (let (html)
+        (with-temp-buffer
+          (insert (jss-io-response-data io))
+          (nxml-mode)
+          (indent-region (point-min) (point-max))
+          (setf html (buffer-substring (point-min) (point-max))))
+        (insert html)))
+     ((string= "text/css" content-type)
+      (let (css)
+        (with-temp-buffer
+          (insert (jss-io-response-data io))
+          (css-mode)
+          (indent-region (point-min) (point-max))
+          (setf css (buffer-substring (point-min) (point-max))))
+        (insert css)))
+     (t
+      (insert "Unrecognized content type: " (or  content-type "---") "\n")
+      (insert (jss-io-response-data io))))))
 
 (provide 'jss-io)

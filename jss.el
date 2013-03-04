@@ -5,11 +5,14 @@
   t)
 
 (define-key jss-super-mode-map (kbd "TAB") 'jss-next-button)
-(define-key jss-super-mode-map (kbd "RET") 'jss-invoke-primary-action)
-(define-key jss-super-mode-map (kbd "SPC") 'jss-invoke-secondary-action)
 
 (defface jss-button-face '((t :underline t))
   "Face used for jss-buttons.")
+
+(defvar jss-button-map (let ((map (make-sparse-keymap)))
+                         (define-key map (kbd "RET") 'jss-invoke-primary-action)
+                         (define-key map (kbd "SPC") 'jss-invoke-secondary-action)
+                         map))
 
 (defun jss-insert-button (label &rest jss-add-text-button-args)
   (let ((start (point)))
@@ -22,7 +25,8 @@
                        (append (list 'jss-button t
                                      'face 'jss-button-face
                                      'read-only t
-                                     'rear-nonsticky t)
+                                     'rear-nonsticky t
+                                     'keymap jss-button-map)
                                (when primary-action
                                  (list 'jss-primary-action primary-action))
                                (when secondary-action
@@ -67,14 +71,14 @@
     (insert ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n")))
 
 (defun jss-comment-char (string)
-  (insert (propertize string
-                      'face font-lock-comment-face
-                      'font-lock-face font-lock-comment-face)))
+  (jss-wrap-with-text-properties (list 'face font-lock-comment-face
+                                       'font-lock-face font-lock-comment-face)
+    (insert-and-inherit string)))
 
 (defun jss-eol-mark ()
   (when (member (preceding-char) (list ?  ?\n ?\t ?\r))
     (jss-comment-char "$"))
-  (insert "\n"))
+  (insert-and-inherit "\n"))
 
 (defun jss-insert-with-highlighted-whitespace (string)
   (save-match-data
@@ -89,12 +93,12 @@
           (?\n (jss-comment-char "\\n"))
           (?\r (jss-comment-char "\\r"))
           (?\f (jss-comment-char "\\f"))
-          (t (insert (char-to-string char)))))
+          (t (insert-and-inherit (char-to-string char)))))
     (when (string-match "[ \t\r\n\f]$" string)
       (jss-comment-char "$"))))
 
 (defun jss-section-marker ()
-  (insert "--------------------------------\n"))
+  (insert-and-inherit "--------------------------------\n"))
 
 (defun jss-have-next-property-block (property-name)
   (or (get-text-property (point) property-name)
@@ -200,6 +204,7 @@
       string))
 
 (require 'jss-browser-api)
+(require 'jss-remote-value)
 (require 'jss-browser-chrome)
 (require 'jss-browser-firefox)
 (require 'jss-browser)

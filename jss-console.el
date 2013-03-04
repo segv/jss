@@ -3,7 +3,13 @@
 (require 'jss-prompt)
 
 (define-derived-mode jss-console-mode jss-super-mode "JSS Console"
-  "Mode for interactiing with a remote javascirpt console.
+  "Major mode for interactiing with a remote web browser tab.
+
+A console buffer consists of a list of messages, representing
+notifications from the browser, and a prompt (which may grow to
+be a list of inputs and vaules).
+
+
 
 Messages from the server are of the form \"// status // message\"
 
@@ -34,6 +40,10 @@ Keys
 (define-key jss-console-mode-map (kbd "C-c C-o") 'jss-console-clear-buffer)
 (define-key jss-console-mode-map (kbd "C-c C-r") 'jss-console-reload-page)
 
+(defun jss-console-mode* (console)
+  (let ((jss-console console))
+    (jss-console-mode)))
+
 (defun jss-current-tab ()
   (or jss-current-tab-instance
       (if (jss-current-console)
@@ -57,8 +67,7 @@ Keys
       (let ((console (jss-tab-make-console tab :tab tab)))
         (setf (jss-tab-console tab) console)
         (with-current-buffer (jss-console-buffer console)
-          (let ((jss-console console))
-            (jss-console-mode)))
+          (jss-console-mode* console))
         console)))
 
 (defun jss-console-ensure-connection ()

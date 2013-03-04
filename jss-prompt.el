@@ -65,6 +65,13 @@
   (jss-end-of-previous-property-block 'jss-prompt)
   (jss-start-of-current-property-block 'jss-prompt))
 
+(defun jss-prompt-next-input ()
+  (jss-start-of-next-property-block 'jss-prompt)
+  (jss-end-of-current-property-block 'jss-prompt-marker)
+  (when (and (get-text-property (point) 'jss-prompt-input)
+             (looking-at " "))
+    (forward-char 1)))
+
 (defun* jss-prompt-current-prompt (&optional (warn t))
   "Returns the prompt object around point. Uses some heuristics
   to figure out what the current prompt is."
@@ -92,8 +99,7 @@
         (goto-char input-start)
         (buffer-substring-no-properties
          input-start
-         input-end
-         )))))
+         input-end)))))
 
 (defun jss-prompt-eval-or-newline ()
   (interactive)
@@ -151,7 +157,7 @@
       (jss-wrap-with-text-properties (list 'read-only t
                                            'jss-prompt prompt
                                            'jss-prompt-output t)
-       (jss-remote-value-insert remote-object)))))
+       (jss-insert-remote-value remote-object)))))
 
 (defun jss-prompt-beginning-of-line (&optional n)
   (interactive "P")

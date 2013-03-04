@@ -7,12 +7,14 @@
 
 After connecting to a specific browser instance, via
 `jss-connect`, this mode presents a list of open tabs and the
-ability to attach a debugger, in the form of a set of
-buffers (one for the console, one for the network activity,
-etc.) to the choosen tab."
+ability to attach a console to a particular tab."
   ;; bound by caller
   (setf jss-current-browser-instance jss-browser)
   (jss-browser-mode-refresh))
+
+(defun jss-browser-mode* (browser)
+  (let ((jss-browser browser))
+    (jss-browser-mode)))
 
 (define-key jss-browser-mode-map (kbd "g") 'jss-browser-mode-refresh)
 
