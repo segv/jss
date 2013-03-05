@@ -11,11 +11,15 @@
   (setf jss-current-io-object jss-io
         (jss-io-buffer jss-io) (current-buffer))
       
-  (insert "Request:\n")
-  (insert "  ")
   (jss-insert-with-highlighted-whitespace (jss-io-request-method jss-io))
   (insert " ")
   (jss-insert-with-highlighted-whitespace (jss-io-request-url jss-io))
+  (insert "\n")
+  (if (jss-io-response-status jss-io)
+      (insert (jss-io-response-status jss-io))
+    (insert "--no response--"))
+  (insert "\n")
+  
   (jss-section-marker)
   
   (insert "Request Headers:") (jss-insert-button "[view raw]" 'jss-toggle-request-headers-raw)

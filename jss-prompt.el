@@ -3,12 +3,24 @@
 
 (defvar jss-prompt-map
   (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map js2-mode-map)
+    ;; (set-keymap-parent map jss)
     map))
 
 (define-key jss-prompt-map (kbd "RET") 'jss-prompt-eval-or-newline)
 (define-key jss-prompt-map (kbd "C-c C-c") 'jss-prompt-eval)
 (define-key jss-prompt-map (kbd "C-a") 'jss-prompt-beginning-of-line)
+
+(define-key jss-prompt-map (kbd "M-p") 'jss-prompt-insert-previous-input)
+(define-key jss-prompt-map (kbd "<up>") 'jss-prompt-insert-previous-input)
+
+(define-key jss-prompt-map (kbd "M-n") 'jss-prompt-insert-next-input)
+(define-key jss-prompt-map (kbd "<down>") 'jss-prompt-insert-next-input)
+
+(make-variable-buffer-local
+ (defvar jss-prompt-input-history '()))
+
+(make-variable-buffer-local
+ (defvar jss-prompt-input-history/last-inserted nil))
 
 (defvar jss-prompt-counter 0)
 
@@ -86,35 +98,45 @@
           (return (get-text-property (point) 'jss-prompt))))
       (warn "Not currently in a prompt."))))
 
+(defmethod jss-prompt-input-location ((prompt jss-prompt))
+  (with-current-buffer (jss-prompt-buffer prompt)
+    (save-excursion
+      (let* ((location (jss-find-property-block 'jss-prompt prompt :test 'eq))
+             (start (car location)))
+        (goto-char start)
+        (let ((input-start (jss-start-of-next-property-block 'jss-prompt-input))
+              (input-end   (jss-end-of-current-property-block 'jss-prompt-input)))
+          (when (or (< (cdr location) input-start)
+                    (< (cdr location) input-end))
+            (error "prompt-input for prompt %s is outside of the prompt itself." prompt))
+          (cons input-start input-end))))))
+
 (defmethod jss-prompt-input-text ((prompt jss-prompt))
   (with-current-buffer (jss-prompt-buffer prompt)
-    (let* ((location (jss-find-property-block 'jss-prompt prompt :test 'eq))
-           (start (car location)))
-      (goto-char start)
-      (let ((input-start (jss-start-of-next-property-block 'jss-prompt-input))
-            (input-end   (jss-end-of-current-property-block 'jss-prompt-input)))
-        (when (or (< (cdr location) input-start)
-                  (< (cdr location) input-end))
-          (error "prompt-input for prompt %s is outside of the prompt itself." prompt))
-        (goto-char input-start)
-        (buffer-substring-no-properties
-         input-start
-         input-end)))))
+    (save-excursion
+      (let ((location (jss-prompt-input-location prompt)))
+        (buffer-substring-no-properties (car location)
+                                        (cdr location))))))
 
-(defun jss-prompt-eval-or-newline ()
-  (interactive)
+(defun mb:test (a) (interactive "P") (message "ARG: %s" a))
+
+(defun jss-prompt-eval-or-newline (force-eval)
+  (interactive "P")
   (block nil
-    (let ((prompt (jss-prompt-current-prompt))
-          (js2-errors '()))
+    (let ((prompt (jss-prompt-current-prompt)))
 
-      (with-temp-buffer
-        (insert (jss-prompt-input-text prompt))
-        (setf js2-errors (js2-ast-root-errors (js2-parse))))
-
-      (if js2-errors
+      (when force-eval
+        (return (jss-prompt-submit prompt)))
+      
+      (if (with-temp-buffer
+            (insert (jss-prompt-input-text prompt))
+            (js2-ast-root-errors (js2-parse)))
+          
           (progn
+            (message "Input has errors: %s" js2-errors)
             (insert-and-inherit "\n")
             (js2-indent-line))
+        
         (jss-prompt-submit prompt)))))
 
 (defun jss-prompt-eval ()
@@ -124,6 +146,8 @@
       (jss-prompt-submit prompt))))
 
 (defmethod jss-prompt-submit ((prompt jss-prompt))
+  (push (jss-prompt-input-text prompt) jss-prompt-input-history)
+  (setf jss-prompt-input-history/last-inserted jss-prompt-input-history)
   (let ((inhibit-read-only t))
     (goto-char (jss-prompt-start-of-input prompt))
     (jss-wrap-with-text-properties (list 'read-only t)
@@ -141,8 +165,7 @@
                 (jss-prompt-input-text prompt))
        (lambda (remote-object)
          (with-current-buffer current-buffer
-           (jss-prompt-update-output prompt remote-object)
-           ))
+           (jss-prompt-update-output prompt remote-object)))
        (lambda (error)
          (with-current-buffer current-buffer
            (jss-prompt-update-output prompt error)))))
@@ -167,5 +190,26 @@
       (if past-prompt-marker
           (goto-char (min (1+ past-prompt-marker) (point-max)))
         (goto-char (point-max))))))
+
+(defmethod jss-prompt-set-input-text ((prompt jss-prompt) input-text)
+  (let* ((location (jss-prompt-input-location prompt))
+         (inhibit-read-only t)
+         (properties (text-properties-at (car location))))    
+    (delete-region (car location) (cdr location))
+    (goto-char (car location))
+    (jss-wrap-with-text-properties properties
+      (insert input-text))))
+
+(defsetf jss-prompt-input-text jss-prompt-set-input-text)
+
+(defun jss-prompt-insert-previous-input ()
+  (interactive)
+  (let* ((prompt (jss-prompt-current-prompt)))
+    (setf jss-prompt-input-history/last-inserted
+          (if (eql 'jss-prompt-insert-previous-input last-command)
+              (cdr jss-prompt-input-history/last-inserted)
+            jss-prompt-input-history/last-inserted))
+    (when jss-prompt-input-history/last-inserted
+      (setf (jss-prompt-input-text prompt) (first jss-prompt-input-history/last-inserted)))))
 
 (provide 'jss-prompt)

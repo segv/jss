@@ -59,21 +59,22 @@ ability to attach a console to a particular tab."
                  (goto-char (point-min))
                  (jss-next-button))
              (insert "No tabs found.")))))
-     (lambda (message)
+     (lambda (error)
        (with-current-buffer jss-browser-buffer
          (let ((inhibit-read-only t))
            (jss-browser-delete-and-insert-header)
-           (insert "\nConnection error: " message)))))))
+           (insert "\nConnection error:\n\n" (prin1-to-string error))
+           (signal (first error) (rest error) )))))))
 
 (defstruct jss-browser
   connector
   label)
 
 (defcustom jss-browsers
-  (list (make-jss-browser :connector 'jss-chrome-connect
-                          :label "Google Chrome")
+  (list (make-jss-browser :connector 'jss-webkit-connect
+                          :label "webkit")
         (make-jss-browser :connector 'jss-firefox-connect
-                          :label "Firefox"))
+                          :label "firefox"))
   "List of known browsers"
   :group 'jss)
 

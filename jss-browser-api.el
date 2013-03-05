@@ -54,16 +54,30 @@ existing tab objects.")
 
 (defgeneric jss-tab-object-properties (tab object-id))
 
+(defclass jss-generic-script ()
+  ((tab :initarg :tab :accessor jss-script-tab)
+   (buffer :initform nil :accessor jss-script-buffer)))
+
+(defgeneric jss-script-id (script))
+
 (defgeneric jss-tab-get-script (tab script-id))
 
 (defmethod jss-tab-get-script ((tab jss-generic-tab) script-id)
   (gethash script-id (jss-tab-scripts tab)))
 
 (defgeneric jss-tab-set-script (tab script-id script))
-(defsetf jss-tab-get-script jss-tab-set-script)
 
 (defmethod jss-tab-set-script ((tab jss-generic-tab) script-id script)
-  (setf (gethash script-id (jss-tab-scripts tab)) script))
+  (setf (jss-script-tab script) tab
+        (gethash script-id (jss-tab-scripts tab)) script))
+
+(defsetf jss-tab-get-script jss-tab-set-script)
+
+(defgeneric jss-script-url (script))
+
+(defgeneric jss-script-get-body (script))
+
+(defgeneric jss-script-buffer (script))
 
 (defgeneric jss-evaluate (context text))
 
@@ -173,7 +187,9 @@ existing tab objects.")
 
 (defgeneric jss-frame-function-name (frame))
 
-(defgeneric jss-frame-source-position (frame))
+(defgeneric jss-frame-source-hint (frame))
+
+(defgeneric jss-frame-get-source-location (frame))
 
 (defgeneric jss-frame-restart (frame))
 
@@ -211,14 +227,20 @@ existing tab objects.")
 (defclass jss-generic-remote-NaN (jss-generic-remote-primitive) ())
 (defmethod jss-remote-value-string ((object jss-generic-remote-NaN)) "NaN")
 
-(defclass jss-generic-remote-infinitiy (jss-generic-remote-primitive) ())
-(defmethod jss-remote-value-string ((object jss-generic-remote-infinitiy)) "+Inf")
+(defclass jss-generic-remote-plus-infinity (jss-generic-remote-primitive) ())
+(defmethod jss-remote-value-string ((object jss-generic-remote-plus-infinity)) "+Inf")
+
+(defclass jss-generic-remote-minus-infinity (jss-generic-remote-primitive) ())
+(defmethod jss-remote-value-string ((object jss-generic-remote-minus-infinity)) "-Inf")
 
 (defclass jss-generic-remote-undefined (jss-generic-remote-primitive) ())
 (defmethod jss-remote-value-string ((object jss-generic-remote-undefined)) "undefined")
 
 (defclass jss-generic-remote-no-value (jss-generic-remote-primitive) ())
 (defmethod jss-remote-value-string ((object jss-generic-remote-no-value)) "no value.")
+
+(defclass jss-generic-remote-null (jss-generic-remote-primitive) ())
+(defmethod jss-remote-value-string ((object jss-generic-remote-null)) "null")
 
 (defclass jss-generic-remote-non-primitive (jss-generic-remote-value) ())
 
@@ -231,9 +253,10 @@ existing tab objects.")
         (format "[%s]" label)
       (format "[%s %s]" class-name label))))
 
-(defmethod jss-remote-object-get-properties (object))
+(defmethod jss-remote-object-get-properties (object tab))
 
 (defclass jss-generic-remote-function (jss-generic-remote-non-primitive) ())
+(defmethod jss-remote-function-get-source-location (function))
 
 (defclass jss-generic-remote-array (jss-generic-remote-object) ())
 

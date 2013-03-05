@@ -34,9 +34,6 @@
       (forward-char column-number)
       (let ((marker-point (point))
             (inhibit-read-only t))
-        (let ((overlay (make-overlay (point) (point))))
-          (overlay-put overlay 'before-string "@@@")
-          (overlay-put overlay 'face 'font-lock-comment-face))
         (let (start end)
           (loop
            repeat 25
@@ -47,8 +44,13 @@
            repeat 25
            when (not (or (eolp) (eobp))) do (forward-char 1))
           (setf end (point))
-          (let ((overlay (make-overlay start end (current-buffer))))
-            (overlay-put overlay 'face 'jss-script-line-marker-face)))
+          (let ((overlay (make-overlay start (min (point-max) (1+ marker-point))
+                                       (current-buffer))))
+            (overlay-put overlay 'face 'jss-script-line-marker-face))
+          (let ((overlay (make-overlay (min (point-max) (1+ marker-point)) end
+                                       (current-buffer))))
+            (overlay-put overlay 'face 'jss-script-line-marker-face))
+          )
         (goto-char marker-point)))
     (display-buffer (current-buffer))
     (let ((recenter-redislay t))

@@ -145,7 +145,7 @@ Keys
 (defun jss-console-clear-buffer ()
   (interactive)
   (let ((console (jss-current-console)))
-    (jss-console-clear console)
+    (jss-console-cleanup console)
     (dolist (buf (buffer-list))
       (with-current-buffer buf
         (when (and (eql 'jss-io-mode major-mode)
@@ -165,5 +165,20 @@ Keys
       (jss-tab-reload tab)
       (lambda (response)
         (jss-console-format-message (jss-tab-console tab) "Triggered page reload.")))))
+
+(defvar jss-set-debugger-sensitivity/levels
+  '(("all exceptions" . :all)
+    ("uncaught exceptions" . :uncaught)
+    ("never" . :never)))
+
+(defun jss-set-debugger-sensitivity (level)
+  "Set the debugger for the current tab to stop on nothing, all exceptions or only uncaught exceptions."
+  (interactive (list (funcall (if ido-mode
+                                  'ido-completing-read
+                                'completing-read)
+                              "Break on: " (mapcar 'car jss-set-debugger-sensitivity/levels)
+                              nil t)))
+  (jss-tab-set-debugger-sensitivity (jss-current-tab)
+                                    (cdr (assoc level jss-set-debugger-sensitivity/levels))))
 
 (provide 'jss-console)

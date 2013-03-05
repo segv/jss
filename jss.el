@@ -204,8 +204,9 @@
       string))
 
 (require 'jss-browser-api)
+(require 'jss-script)
 (require 'jss-remote-value)
-(require 'jss-browser-chrome)
+(require 'jss-browser-webkit)
 (require 'jss-browser-firefox)
 (require 'jss-browser)
 (require 'jss-console)

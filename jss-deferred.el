@@ -14,6 +14,17 @@
                                  (list errorback)
                                '())))
 
+(defun* make-jss-completed-deferred (&key callback errorback)
+  (let ((d (make-jss-deferred)))
+    (cond
+     ((and callback (not errorback))
+      (jss-deferred-callback d callback))
+     ((and errorback (not callback))
+      (jss-deferred-errorback d errorback))
+     (t
+      (error "Invalid arguments to make-jss-completed-deferred. Exactly one of :callback, :errorback must be specified.")))
+    d))
+
 (defmacro appendf (place &rest elements)
   `(setf ,place (append ,place ,@elements)))
 
