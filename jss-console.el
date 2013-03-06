@@ -92,7 +92,7 @@ Keys
 
 (defun jss-console-kill ()
   (interactive)
-  (jss-console-cleanup (jss-current-console))
+  (jss-console-close (jss-current-console))
   (jss-current-console))
 
 (defmethod jss-console-debug-message ((console jss-generic-console) &rest format-message-args)
@@ -182,7 +182,7 @@ Keys
 (defun jss-console-clear-buffer ()
   (interactive)
   (let ((console (jss-current-console)))
-    (jss-console-cleanup console)
+    (jss-console-clear console)
     (dolist (buf (buffer-list))
       (with-current-buffer buf
         (when (and (eql 'jss-io-mode major-mode)

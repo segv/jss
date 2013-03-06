@@ -96,17 +96,17 @@ existing tab objects.")
 
 (defgeneric jss-console-buffer (console))
 
+(defgeneric jss-console-close (console))
+
+(defmethod jss-console-close :after ((console jss-generic-console))
+  (setf (jss-tab-console (jss-console-tab console)) nil
+        (jss-console-tab console) nil))
+
 (defmethod jss-console-buffer ((console jss-generic-console))
   (get-buffer-create
    (format "*JSS Console/%s*" (jss-tab-id (jss-console-tab console)))))
 
 (defgeneric jss-console-insert-io (console io))
-
-(defgeneric jss-console-cleanup (console))
-
-(defmethod jss-console-cleanup :after ((console jss-generic-console))
-  (setf (jss-tab-console (jss-console-tab console)) nil
-        (jss-console-tab console) nil))
 
 (defclass jss-generic-io ()
   ((tab :accessor jss-io-tab :initform nil)

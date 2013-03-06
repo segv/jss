@@ -591,6 +591,10 @@
                                           (cons 'objectGroup (jss-webkit-object-group console)))
                                     "Failed to cleanup object group %s" (jss-webkit-object-group console)))
 
+(defmethod jss-console-close ((console jss-webkit-console))
+  (jss-console-cleanup console)
+  (websocket-close (slot-value (jss-console-tab console) 'websocket)))
+
 (define-jss-webkit-notification-handler "Console.messageAdded" (message)
   (jss-console-format-message console
                               (ecase (cdr (assoc 'type message))
