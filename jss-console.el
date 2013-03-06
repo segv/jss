@@ -46,6 +46,7 @@ Keys
 (define-key jss-console-mode-map (kbd "C-c C-r") 'jss-console-ensure-connection)
 (define-key jss-console-mode-map (kbd "C-c C-o") 'jss-console-clear-buffer)
 (define-key jss-console-mode-map (kbd "C-c C-r") 'jss-console-reload-page)
+(define-key jss-console-mode-map (kbd "C-c C-i") 'jss-expand-nearest-remote-value)
 
 (defun jss-console-mode* (console)
   (let ((jss-console console))

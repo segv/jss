@@ -134,4 +134,35 @@
                 do (jss-insert-remote-value (cdr item))
                 finally (insert "]"))))))))))
 
+(defun jss-expand-nearest-remote-value ()
+  (interactive)
+  (let ((nearest-before nil)
+        (nearest-before-distance 0)
+        (nearest-after nil)
+        (nearest-after-distance 0))
+    (save-excursion
+      (while (and (not (get-text-property (point) 'jss-remote-value-collapsed))
+                  (< (point-min) (point)))
+        (backward-char 1)
+        (incf nearest-before-distance))
+      (if (get-text-property (point) 'jss-remote-value-collapsed)
+          (setf nearest-before (get-text-property (point) 'jss-remote-value))
+        (setf nearest-before-distance nil)))
+    (save-excursion
+      (while (and (not (get-text-property (point) 'jss-remote-value-collapsed))
+                  (< (point) (point-max)))
+        (forward-char 1)
+        (incf nearest-after-distance))
+      (if (get-text-property (point) 'jss-remote-value-collapsed)
+          (setf nearest-after (get-text-property (point) 'jss-remote-value))
+        (setf nearest-after-distance nil)))
+    (cond
+     ((and nearest-before-distance nearest-after-distance)
+      (jss-remote-value-expand (if (<= nearest-before-distance nearest-after-distance)
+                                   nearest-before
+                                 nearest-after)))
+     (nearest-before-distance (jss-remote-value-expand nearest-before))
+     (nearest-after-distance  (jss-remote-value-expand nearest-after))
+     (t (message "No expandable values around point.")))))
+
 (provide 'jss-remote-value)
