@@ -26,7 +26,27 @@ remote browser.
 
 ### Firefox
 
-It's a pain.
+Set the following prefs: (either by appending these lines to your
+profile's prefs.js or setting them in the about:config page)
+
+    user_pref("devtools.chrome.enabled", true);
+    user_pref("devtools.debugger.remote-enabled", true);
+
+If you plan on connecting to firefox running a remote machine and you don't want to/can't use an ssh tunnel, then you'll need this as well:
+
+    user_pref("devtools.debugger.force-local", false);
+
+Then restart firefox. If you've done the precedding step properly
+you'll have a menu option "Scrtachpad" under "Tool > Web Developer."
+The scriptpad window will have an "Environment" menu, choose Browser,
+and then run the following snippet:
+
+    Components.utils.import("resource://gre/modules/devtools/dbg-server.jsm"); 
+    DebuggerServer.init(function () { return true; });
+    DebuggerServer.addBrowserActors();
+    DebuggerServer.openListener(6000);
+
+(paste that in and eithre hit C-r or choose "Execute > Run")
 
 ### Emacs
 
