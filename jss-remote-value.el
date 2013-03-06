@@ -15,37 +15,63 @@
       (error "No value at point."))
     (jss-remote-value-expand value)))
 
-(defmacro* replace-property-block ((property-name property-value &key (test 'eq)) &body body)
+(defmacro* jss-replace-with-default-property ((property-name property-value &key (test 'eq)) &body body)
   (declare (indent 1))
-  (let ((loc (gensym)))
-    `(let ((,loc (jss-find-property-block ',property-name ,property-value :test ,test))
-           (inhibit-read-only t))
+  (let ((loc (gensym)) (prop-val (gensym)))
+    `(let* ((,prop-val ,property-value)
+            (,loc (jss-find-property-block ',property-name ,prop-val :test ,test))
+            (inhibit-read-only t))
        (save-excursion
          (goto-char (car ,loc))
          (delete-region (car ,loc) (cdr ,loc))
-         (jss-wrap-with-text-properties (list ',property-name ,property-value)
-           ,@body)))))
+         (let ((start (point)))
+           (prog1
+               (progn ,@body)
+             (jss-add-text-property-unless-exists (car ,loc) (point)
+                                                  ',property-name
+                                                  ,prop-val)))))))
+
+(put 'jss-replace-with-default-property 'lisp-indent-function 1)
+
+(defun jss-add-text-property-unless-exists (start end property-name property-value)  
+  (save-excursion
+    (block nil
+      (goto-char start)
+      (while (< (point) end)
+        (setf start (point))
+        (while (not (get-text-property (point) property-name))
+          (forward-char 1)
+          (when (= (point) end)
+            (add-text-properties start (point) (list property-name property-value))
+            (return)))
+        (add-text-properties start (point) (list property-name property-value))
+        (when (get-text-property (point) property-name)
+          (forward-char 1)
+          (when (= (point) end)
+            (return)))))))
 
 (defmethod jss-remote-value-expand ((value jss-generic-remote-object))
-  (replace-property-block (jss-remote-value value :test 'eq)
-                          (insert "{expanding " (jss-remote-value-string value) "}")
-                          (lexical-let ((buffer (current-buffer))
-                                        (value value))
-                            (jss-deferred-add-callback
-                             (jss-remote-object-get-properties value (jss-current-tab))
-                             (lambda (properties)
-                               (with-current-buffer buffer
-                                 (replace-property-block (jss-remote-value value :test 'eq)
-                                                         (insert (jss-remote-value-string value) "{")
-                                                         (let ((left-column (current-column)))
-                                                           (loop
-                                                            for first = t then nil
-                                                            for prop in properties
-                                                            unless first do (insert ",\n")
-                                                            unless first do (move-to-column left-column t)
-                                                            do (insert (car prop) ":")
-                                                            do (jss-insert-remote-value (cdr prop))))
-                                                         (insert "}"))))))))
+  (jss-replace-with-default-property
+      (jss-remote-value value :test 'eq)
+    (insert "{expanding " (jss-remote-value-string value) "}")
+    (lexical-let ((buffer (current-buffer))
+                  (value value))
+      (jss-deferred-add-callback
+       (jss-remote-object-get-properties value (jss-current-tab))
+       (lambda (properties)
+         (with-current-buffer buffer
+           (jss-replace-with-default-property
+               (jss-remote-value value :test 'eq)
+             (let ((left-column (+ 2 (current-column))))
+               (insert (jss-remote-value-string value) " {\n")
+               (loop for first = t then nil
+                     for (prop . more) on properties
+                     do (indent-to-column left-column)
+                     do (insert (car prop) ":")
+                     do (jss-insert-remote-value (cdr prop))
+                     when more
+                     do (insert ",\n"))
+               (insert "}")))))))))
 
 (defmethod jss-remote-value-expand ((value jss-generic-remote-function))
   (lexical-let ((tab (jss-current-tab)))
@@ -57,7 +83,7 @@
   (lexical-let ((tab (jss-current-tab))
                 (value value)
                 (buffer (current-buffer)))
-    (replace-property-block (jss-remote-value value :test 'eq)
+    (jss-replace-with-default-property (jss-remote-value value :test 'eq)
       (insert "[expanding]")
       (jss-deferred-add-callback
        (jss-remote-object-get-properties value (jss-current-tab))
@@ -68,14 +94,14 @@
              (if (string-to-number (car prop))
                  (push (cons (string-to-number (car prop)) (cdr prop)) integer-properties)
                (push prop other-properties)))
-           (replace-property-block (jss-remote-value value :test 'eq)
-                                   (with-current-buffer buffer
-                                     (loop
-                                      initially (insert "[")
-                                      for item in (cl-sort integer-properties '< :key 'car)
-                                      for first = t then nil
-                                      unless first do (insert ", ")
-                                      do (jss-insert-remote-value (cdr item))
-                                      finally (insert "]"))))))))))
+           (jss-replace-with-default-property (jss-remote-value value :test 'eq)
+             (with-current-buffer buffer
+               (loop
+                initially (insert "[")
+                for item in (cl-sort integer-properties '< :key 'car)
+                for first = t then nil
+                unless first do (insert ", ")
+                do (jss-insert-remote-value (cdr item))
+                finally (insert "]"))))))))))
 
 (provide 'jss-remote-value)
