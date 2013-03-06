@@ -2,14 +2,21 @@
 (require 'eieio)
 (require 'jss-prompt)
 
+(defface jss-console-debug-message '((t :inherit font-lock-comment-face))
+  "Face for JSS debug messages")
+(defface jss-console-log-message   '((t :inherit font-lock-doc-face))
+  "Face for JSS log messages")
+(defface jss-console-warn-message  '((t :inherit font-lock-other-emphasized-face))
+  "Face for JSS warning messages")
+(defface jss-console-error-message '((t :inherit font-lock-warning-face))
+  "Face for JSS error messages")
+
 (define-derived-mode jss-console-mode jss-super-mode "JSS Console"
   "Major mode for interactiing with a remote web browser tab.
 
 A console buffer consists of a list of messages, representing
 notifications from the browser, and a prompt (which may grow to
 be a list of inputs and vaules).
-
-
 
 Messages from the server are of the form \"// status // message\"
 
@@ -75,23 +82,48 @@ Keys
   (unless (jss-current-console)
     (error "No current console object. Can't open console here."))
   (unless (jss-tab-connected-p (jss-console-tab (jss-current-console)))
-    (jss-console-insert-message (jss-current-console) "// info // Connecting...")
+    (jss-console-debug-message (jss-current-console) "Connecting...")
     (lexical-let ((buf (current-buffer)))
       (jss-deferred-add-backs
         (jss-tab-connect (jss-console-tab (jss-current-console)))
         (lambda (tab)
           (with-current-buffer buf
-            (jss-console-insert-message (jss-current-console) "// info // Connected.")))))))
+            (jss-console-debug-message (jss-current-console) "Connected.")))))))
 
 (defun jss-console-kill ()
   (interactive)
   (jss-console-cleanup (jss-current-console))
   (jss-current-console))
 
-(defmethod jss-console-insert-message ((console jss-generic-console) message-text &rest other-properties)
-  (jss-console-format-message console "%s" message-text :properties other-properties))
+(defmethod jss-console-debug-message ((console jss-generic-console) &rest format-message-args)
+  (apply 'jss-console-format-message console 'debug format-message-args))
 
-(defmethod jss-console-format-message ((console jss-generic-console) format-string &rest format-args-and-properties)
+(defmethod jss-console-log-message ((console jss-generic-console) &rest format-message-args)
+  (apply 'jss-console-format-message console 'log format-message-args))
+
+(defmethod jss-console-warn-message ((console jss-generic-console) &rest format-message-args)
+  (apply 'jss-console-format-message console 'warn format-message-args))
+
+(defmethod jss-console-error-message ((console jss-generic-console) &rest format-message-args)
+  (apply 'jss-console-format-message console 'error format-message-args))
+
+(defun jss-console-level-face (level)
+  (ecase level
+    (debug 'jss-console-debug-message)
+    (log   'jss-console-log-message)
+    (warn  'jss-console-warn-message)
+    (error 'jss-console-error-message)))
+
+(defun jss-console-level-label (level)
+  (concat "// "
+          (ecase level
+            (debug "note")
+            (log   "log")
+            (warn  "warning")
+            (error "ERROR"))
+          " // "))
+
+(defmethod jss-console-format-message ((console jss-generic-console) level format-string &rest format-args-and-properties)
   (let ((properties nil)
         (format-args nil))
     (if (member :properties format-args-and-properties)
@@ -103,11 +135,14 @@ Keys
          else do (push (car head) format-args)
          finally (setf format-args (reverse format-args)))
       (setf format-args format-args-and-properties))
+    (unless (getf 'face properties)
+      (setf properties (list* 'face (jss-console-level-face level) properties)))
     (with-current-buffer (jss-console-buffer console)
       (save-excursion
         (jss-before-last-prompt)
         (let ((start (point))
               (inhibit-read-only t))
+          (insert (jss-console-level-label level)) 
           (insert (apply 'format format-string format-args) "\n")
           (unless (getf properties 'read-only)
             (setf properties (list* 'read-only t properties)))
@@ -117,9 +152,11 @@ Keys
   (with-current-buffer (jss-console-buffer console)
     (save-excursion
       (jss-before-last-prompt)
-      (jss-wrap-with-text-properties `(jss-io-id ,(jss-io-id io) read-only t)
+      (jss-wrap-with-text-properties (list 'jss-io-id (jss-io-id io)
+                                           'face (jss-console-level-face 'log)
+                                           'read-only t)
         (let ((inhibit-read-only t))
-          (insert "// log // "
+          (insert (jss-console-level-label 'log)
                   (ecase (first (first (jss-io-lifecycle io)))
                     (:sent "Requested")
                     (:loading-finished "Loaded")
@@ -164,7 +201,7 @@ Keys
     (jss-deferred-add-backs
       (jss-tab-reload tab)
       (lambda (response)
-        (jss-console-format-message (jss-tab-console tab) "Triggered page reload.")))))
+        (jss-console-log-message (jss-tab-console tab) "Triggered page reload.")))))
 
 (defvar jss-set-debugger-sensitivity/levels
   '(("all exceptions" . :all)

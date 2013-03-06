@@ -22,13 +22,13 @@
   
   (jss-section-marker)
   
-  (insert "Request Headers:") (jss-insert-button "[view raw]" 'jss-toggle-request-headers-raw)
+  (insert "Request Headers: ") (jss-insert-button "[view raw]" 'jss-toggle-request-headers-raw)
   (insert "\n")
   (jss-wrap-with-text-properties `(jss-request-headers t)
     (jss-io-insert-header-table (jss-io-request-headers jss-io) :indent 2))
   (jss-section-marker)
   
-  (insert "Request Data:") (jss-insert-button "[view raw]" 'jss-toggle-request-data-raw) (insert "\n")
+  (insert "Request Data: ") (jss-insert-button "[view raw]" 'jss-toggle-request-data-raw) (insert "\n")
   (jss-section-marker)
   
   (when (jss-io-response-status jss-io)
@@ -41,11 +41,12 @@
     (jss-section-marker)
         
     (insert "Response Data: ")
-    (jss-insert-button "[view raw]" 'jss-toggle-response-data-raw)
+    (jss-insert-button "[view raw] " 'jss-toggle-response-data-raw)
     (when (jss-io-response-content-type jss-io)
       (insert "type: " (jss-io-response-content-type jss-io)))
     (when (jss-io-response-content-length jss-io)
       (insert "length: " (jss-io-response-content-length jss-io)))
+    (insert "\n")
     (let ((data (jss-io-response-data jss-io)))
       (when data
         (jss-io-insert-response-data jss-io)))
@@ -92,25 +93,24 @@
         (jss-io-mode)))
     (display-buffer (jss-io-buffer io))))
 
+(defun jss-io-fontify-data (data mode)
+  (let (out (buffer (generate-new-buffer " *jss-fontification*")))
+    (with-current-buffer buffer
+      (insert data)
+      (funcall mode)
+      (indent-region (point-min) (point-max))
+      (setf out (buffer-substring (point-min) (point-max))))
+    out))
+
 (defmethod jss-io-insert-response-data ((io jss-generic-io))
   (let ((content-type (jss-io-response-content-type io)))
     (cond
      ((string= "text/html" content-type)
-      (let (html)
-        (with-temp-buffer
-          (insert (jss-io-response-data io))
-          (nxml-mode)
-          (indent-region (point-min) (point-max))
-          (setf html (buffer-substring (point-min) (point-max))))
-        (insert html)))
+      (insert (jss-io-fontify-data (jss-io-response-data io) 'nxml-mode)))
      ((string= "text/css" content-type)
-      (let (css)
-        (with-temp-buffer
-          (insert (jss-io-response-data io))
-          (css-mode)
-          (indent-region (point-min) (point-max))
-          (setf css (buffer-substring (point-min) (point-max))))
-        (insert css)))
+      (insert (jss-io-fontify-data (jss-io-response-data io) 'css-mode)))
+     ((cl-member content-type '("application/javascript" "text/javascript") :test 'string=)
+      (insert (jss-io-fontify-data (jss-io-response-data io) 'js2-mode)))
      (t
       (insert "Unrecognized content type: " (or  content-type "---") "\n")
       (insert (jss-io-response-data io))))))

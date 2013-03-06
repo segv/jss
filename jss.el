@@ -21,17 +21,18 @@
     label))
 
 (defun* jss-add-text-button (start end primary-action &key secondary-action other-properties)
-  (add-text-properties start end
-                       (append (list 'jss-button t
-                                     'face 'jss-button-face
-                                     'read-only t
-                                     'rear-nonsticky t
-                                     'keymap jss-button-map)
-                               (when primary-action
-                                 (list 'jss-primary-action primary-action))
-                               (when secondary-action
-                                 (list 'jss-secondary-action secondary-action))
-                               other-properties)))
+  (let ((o (make-overlay start end (current-buffer))))
+    (overlay-put o 'face 'jss-button-face)
+    (overlay-put o 'keymap jss-button-map)
+    (add-text-properties start end
+                         (append (list 'jss-button t
+                                       'read-only t
+                                       'rear-nonsticky t)
+                                 (when primary-action
+                                   (list 'jss-primary-action primary-action))
+                                 (when secondary-action
+                                   (list 'jss-secondary-action secondary-action))
+                                 other-properties))))
 
 (defun jss-invoke-property (property-name)
   (when (get-text-property (point) property-name)

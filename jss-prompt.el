@@ -1,13 +1,17 @@
 ;;; the jss prompt is designed so that it can be embedded in multiple
 ;;; places (the console buffer and the debugger for now).
 
+;;; TODO: A prompt is, by default, inactive, when it's activated the
+;;; buffer's keymap is stored away, motion is limited ot whithin the
+;;; prompt itself and the prompt map is used. when done (via C-c C-c),
+;;; the prompt is made read-noly and the prompt keymap disappears
+
 (defvar jss-prompt-map
   (let ((map (make-sparse-keymap)))
     ;; (set-keymap-parent map jss)
     map))
 
 (define-key jss-prompt-map (kbd "RET") 'jss-prompt-eval-or-newline)
-(define-key jss-prompt-map (kbd "C-c C-c") 'jss-prompt-eval)
 (define-key jss-prompt-map (kbd "C-a") 'jss-prompt-beginning-of-line)
 
 (define-key jss-prompt-map (kbd "M-p") 'jss-prompt-insert-previous-input)
@@ -27,14 +31,18 @@
 (defclass jss-prompt ()
   ((submit-function :initarg :submit-function :accessor jss-prompt-submit-function)
    (id :initform (incfo jss-prompt-counter) :reader jss-prompt-id)
-   (buffer :initarg :buffer :reader jss-prompt-buffer)))
+   (buffer :initarg :buffer :reader jss-prompt-buffer)
+   (active-p :initform t :accessor jss-prompt-active-p)
+   (history :initarg :history :reader jss-prompt-history)
+   (history-offset :initform nil :accessor jss-prompt-history-offset)))
 
-(defun jss-insert-prompt (submit-function)
+(defun jss-insert-prompt (submit-function &optional history)
   (unless (or (bobp) (= (point) (line-beginning-position)))
     (insert "\n"))
   (let ((prompt (make-instance 'jss-prompt
                                :submit-function submit-function
-                               :buffer (current-buffer)))
+                               :buffer (current-buffer)
+                               :history history))
         (inhibit-read-only t))
     (jss-wrap-with-text-properties (list 'jss-prompt prompt)
 
@@ -118,32 +126,29 @@
         (buffer-substring-no-properties (car location)
                                         (cdr location))))))
 
-(defun mb:test (a) (interactive "P") (message "ARG: %s" a))
-
 (defun jss-prompt-eval-or-newline (force-eval)
+  "Evaluate the current input or insert a newline if js2 thinks
+there are syntax errors in teh input.
+
+Supply a prefix arg to force sending the current text"
   (interactive "P")
   (block nil
     (let ((prompt (jss-prompt-current-prompt)))
 
       (when force-eval
         (return (jss-prompt-submit prompt)))
-      
-      (if (with-temp-buffer
-            (insert (jss-prompt-input-text prompt))
-            (js2-ast-root-errors (js2-parse)))
-          
-          (progn
-            (message "Input has errors: %s" js2-errors)
-            (insert-and-inherit "\n")
-            (js2-indent-line))
-        
-        (jss-prompt-submit prompt)))))
 
-(defun jss-prompt-eval ()
-  (interactive)
-  (let ((prompt (jss-prompt-current-prompt)))
-    (when prompt
-      (jss-prompt-submit prompt))))
+      (let ((js2-parse-errors (with-temp-buffer
+                                (insert (jss-prompt-input-text prompt))
+                                (js2-ast-root-errors (js2-parse)))))
+        
+        (if js2-parse-errors
+            (progn
+              (message "Input has errors: %s" js2-parse-errors)
+              (insert-and-inherit "\n")
+              (js2-indent-line)
+              (return))
+          (jss-prompt-submit prompt))))))
 
 (defmethod jss-prompt-submit ((prompt jss-prompt))
   (push (jss-prompt-input-text prompt) jss-prompt-input-history)
@@ -151,26 +156,27 @@
   (let ((inhibit-read-only t))
     (goto-char (jss-prompt-start-of-input prompt))
     (jss-wrap-with-text-properties (list 'read-only t)
-      (goto-char (jss-prompt-end-of-input prompt))
-      (insert-and-inherit "\n"))
+      (goto-char (jss-prompt-end-of-input prompt)))
     (jss-wrap-with-text-properties (list 'read-only t
                                          'jss-prompt-output t
                                          'jss-prompt prompt)
-      (insert "// Evaluating..."))
+      (insert "\n// Evaluating..."))
     
     (lexical-let ((current-buffer (current-buffer))
-                  (prompt prompt))
+                  (prompt prompt)
+                  (input-text (jss-prompt-input-text prompt)))
+      (setf (jss-prompt-active-p prompt) nil)
       (jss-deferred-add-backs
-       (funcall (jss-prompt-submit-function prompt)
-                (jss-prompt-input-text prompt))
+       (funcall (jss-prompt-submit-function prompt) input-text)
        (lambda (remote-object)
          (with-current-buffer current-buffer
            (jss-prompt-update-output prompt remote-object)))
        (lambda (error)
          (with-current-buffer current-buffer
-           (jss-prompt-update-output prompt error)))))
-    (goto-char (jss-prompt-end-of-output prompt))
-    (jss-insert-prompt (jss-prompt-submit-function prompt))))
+           (jss-prompt-update-output prompt error))))
+      (goto-char (jss-prompt-end-of-output prompt))
+      (jss-insert-prompt (jss-prompt-submit-function prompt)
+                         (cons input-text (jss-prompt-history prompt))))))
 
 (defmethod jss-prompt-update-output ((prompt jss-prompt) remote-object)
   (save-excursion
@@ -180,7 +186,8 @@
       (jss-wrap-with-text-properties (list 'read-only t
                                            'jss-prompt prompt
                                            'jss-prompt-output t)
-       (jss-insert-remote-value remote-object)))))
+        (insert "\n")
+        (jss-insert-remote-value remote-object)))))
 
 (defun jss-prompt-beginning-of-line (&optional n)
   (interactive "P")
@@ -202,14 +209,34 @@
 
 (defsetf jss-prompt-input-text jss-prompt-set-input-text)
 
+(defun jss-active-prompt ()
+  (let* ((prompt (jss-prompt-current-prompt)))
+    (unless prompt
+      (error "No prompt at point."))
+    (unless (jss-prompt-active-p prompt)
+      (error "Current prompt is no longer active."))
+    prompt))
+
+(defun jss-prompt-insert-from-history (prompt history-delta first-time)
+  (when (jss-prompt-history prompt)
+    (if (null (jss-prompt-history-offset prompt))
+        (setf (jss-prompt-history-offset prompt) first-time)
+      (setf (jss-prompt-history-offset prompt) (+ history-delta (jss-prompt-history-offset prompt))))
+    (setf (jss-prompt-history-offset prompt) (mod (jss-prompt-history-offset prompt)
+                                                  (length (jss-prompt-history prompt)))
+          (jss-prompt-input-text prompt) (nth (jss-prompt-history-offset prompt) (jss-prompt-history prompt)))))
+
 (defun jss-prompt-insert-previous-input ()
   (interactive)
-  (let* ((prompt (jss-prompt-current-prompt)))
-    (setf jss-prompt-input-history/last-inserted
-          (if (eql 'jss-prompt-insert-previous-input last-command)
-              (cdr jss-prompt-input-history/last-inserted)
-            jss-prompt-input-history/last-inserted))
-    (when jss-prompt-input-history/last-inserted
-      (setf (jss-prompt-input-text prompt) (first jss-prompt-input-history/last-inserted)))))
+  (jss-prompt-insert-from-history (jss-active-prompt)
+                                  +1
+                                  0))
+
+(defun jss-prompt-insert-next-input ()
+  (interactive)
+  (let ((prompt (jss-active-prompt)))
+    (jss-prompt-insert-from-history prompt
+                                    -1
+                                    (1- (length  (jss-prompt-history prompt))))))
 
 (provide 'jss-prompt)

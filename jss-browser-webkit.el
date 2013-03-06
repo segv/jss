@@ -79,8 +79,8 @@
              (let ((status (save-match-data
                              (if (looking-at "^HTTP/1\\.1 \\(.*\\)$")
                                  (match-string 1)
-                               "No status received."))))
-               (jss-deferred-errorback d (format "Bad status: %s" (prin1-to-string status)))))))))
+                               (format "No status received from %s" (jss-webkit-remote-debugging-url browser))))))
+               (jss-deferred-errorback d (list 'bad-status (prin1-to-string status)))))))))
     d))
 
 ;;; The tab API implementation
@@ -184,9 +184,9 @@
     (jss-deferred-add-backs
       (jss-webkit-send-request tab (list (format "%s.enable" domain)))
       (lambda (response)
-        (jss-console-format-message console "// debug // %s enabled." domain))
+        (jss-console-debug-message console "%s enabled." domain))
       (lambda (response)
-        (jss-console-format-message console "// debug // Could not enable %s: %s" domain response)))))
+        (jss-console-debug-message console "Could not enable %s: %s" domain response)))))
 
 (defmethod jss-webkit-tab-websocket/on-message ((tab jss-webkit-tab) websocket frame)
   (jss-log-event (list :websocket
@@ -199,24 +199,29 @@
                     (goto-char (point-min))
                     (json-read)))
          (request-id (cdr (assoc 'id message)))
-         (request-deferred (gethash request-id (slot-value tab 'requests)))
+         (requests (slot-value tab 'requests))
+         (request-deferred (gethash request-id requests))
          (console (jss-tab-ensure-console tab))
          (err (cdr (assoc 'error message))))
     (if err
         (if request-deferred
-            (jss-deferred-errorback request-deferred err)
+            (progn
+              (remhash request-id requests)
+              (jss-deferred-errorback request-deferred err))
           (progn
             (jss-log-event (list :google-webkit
                                  (jss-webkit-tab-debugger-url tab)
                                  :unhandled-error
                                  err))
-            (jss-console-format-message console
-                                        "// Unhandled error: %s (%s)"
-                                        (cdr (assoc 'message err))
-                                        (cdr (assoc 'code    err)))))
+            (jss-console-error-message console
+                                       "Unhandled error: %s (%s)"
+                                       (cdr (assoc 'message err))
+                                       (cdr (assoc 'code    err)))))
       
       (if request-deferred
-          (jss-deferred-callback request-deferred (cdr (assoc 'result message)))
+          (progn
+            (remhash request-id requests)
+            (jss-deferred-callback request-deferred (cdr (assoc 'result message))))
         (let* ((method (cdr (assoc 'method message)))
                (handler (gethash method jss-webkit-notification-handlers)))
           (if handler
@@ -235,7 +240,7 @@
 (defmethod jss-webkit-tab-websocket/on-close ((tab jss-webkit-tab) websocket)
   (jss-log-event (list :websocket (jss-webkit-tab-debugger-url tab) :on-close))
   (when (jss-tab-console tab)
-    (jss-console-format-message (jss-tab-console tab) "// ERROR // Remote end closed connection."))
+    (jss-console-error-message (jss-tab-console tab) "Remote end closed connection."))
   (setf (slot-value tab 'websocket) nil))
 
 (defmethod jss-webkit-tab-websocket/on-error ((tab jss-webkit-tab) websocket action error)
@@ -342,7 +347,7 @@
   t)
 
 (define-jss-webkit-notification-handler "Debugger.paused" (callFrames reason data)
-  (jss-console-format-message console "// ERROR // Debugger paused on %s" reason)
+  (jss-console-error-message console "Debugger paused on %s" reason)
   (let ((jss-debugger (make-instance 'jss-webkit-debugger
                                      :reason reason
                                      :data (cond 
@@ -559,9 +564,9 @@
                 (make-instance 'jss-generic-remote-null)
               (make-instance (cond
                               ((string= subtype "array")  'jss-webkit-remote-array)
-                              ((string= subtype "date")   'jss-webkit-remote-date)
-                              ((string= subtype "node")   'jss-webkit-remote-node)
-                              ((string= subtype "regexp") 'jss-webkit-remote-regexp)
+                              ;; ((string= subtype "date")   'jss-webkit-remote-date)
+                              ;; ((string= subtype "node")   'jss-webkit-remote-node)
+                              ;; ((string= subtype "regexp") 'jss-webkit-remote-regexp)
                               (t                          'jss-webkit-remote-object))
                              :className (cdr (assoc 'className result))
                              :description (cdr (assoc 'description result))
@@ -587,7 +592,15 @@
                                     "Failed to cleanup object group %s" (jss-webkit-object-group console)))
 
 (define-jss-webkit-notification-handler "Console.messageAdded" (message)
-  (jss-console-format-message console "// %s // %s%s"
+  (jss-console-format-message console
+                              (ecase (cdr (assoc 'type message))
+                                (debug 'debug)
+                                (log 'log)
+                                (warning 'warn)
+                                (error 'error)
+                                (tip 'error)
+                                ((nil) 'log))
+                              "// %s // %s%s"
                               (cdr (assoc 'type message))
                               (cdr (assoc 'text message))
                               (let ((url (cdr (assoc 'url message)))
@@ -727,17 +740,17 @@
    (jss-console-update-request-message console io)))
 
 (define-jss-webkit-notification-handler "Page.loadEventFired" (timestamp)
-  (jss-console-insert-message console "// log // page loaded"))
+  (jss-console-log-message console "page loaded"))
 
 (define-jss-webkit-notification-handler "Page.domContentEventFired" (timestamp)
-  (jss-console-insert-message console "// log // dom content"))
+  (jss-console-log-message console "dom content"))
 
 ;;; not in docs?
 (define-jss-webkit-notification-handler "Page.frameNavigated" (frame)
-  (jss-console-format-message console "// log // frame %s navigated to %s" (cdr (assoc 'id frame)) (cdr (assoc 'url frame))))
+  (jss-console-log-message console "frame %s navigated to %s" (cdr (assoc 'id frame)) (cdr (assoc 'url frame))))
 
 ;;; not in docs?
 (define-jss-webkit-notification-handler "Page.frameDetached" (frameId)
-  (jss-console-format-message console "// log // frame %s detached" frameId))
+  (jss-console-log-message console "frame %s detached" frameId))
 
 (provide 'jss-browser-webkit)
