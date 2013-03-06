@@ -1,25 +1,27 @@
 
 (defmethod jss-insert-remote-value ((value jss-generic-remote-primitive))
-  (insert (jss-limit-string-length (jss-remote-value-string value) 60)))
+  (jss-remote-value-insert-description value))
 
 (defmethod jss-insert-remote-value ((value jss-generic-remote-non-primitive))
   (let ((start (point)))
     (jss-wrap-with-text-properties (list 'jss-remote-value value 'jss-remote-value-collapsed t)
-      (insert (jss-limit-string-length (jss-remote-value-string value) 60)))
-    (jss-add-text-button start (point) 'jss-remote-value-expand-at-point)))
+      (jss-remote-value-insert-description value))
+    (jss-add-text-button start (point) 'jss-remote-value-expand-at-point)
+    (jss-autoexpand-small-remote-object value jss-remote-value-auto-expand-property-limit)))
 
-(defvar jss-remote-value-auto-expand-property-limit 5)
+(defvar jss-remote-value-auto-expand-property-limit 6)
 
 (defvar jss-remote-value-expand/pre-computed-properties nil)
 
-(defmethod jss-insert-remote-value :after ((value jss-generic-remote-object))
-  (lexical-let ((value value))
+(defun jss-autoexpand-small-remote-object (object max-property-length)
+  (lexical-let ((object object)
+                (max-property-length max-property-length))
     (jss-deferred-add-callback
-     (jss-remote-object-get-properties value (jss-current-tab))
+     (jss-remote-object-get-properties object (jss-current-tab))
      (lambda (properties)
-       (when (<= (length properties) jss-remote-value-auto-expand-property-limit)
+       (when (<= (length properties) max-property-length)
          (let ((jss-remote-value-expand/pre-computed-properties properties))
-           (jss-remote-value-expand value)))))))
+           (jss-remote-value-expand object)))))))
 
 (defun jss-remote-value-expand-at-point ()
   (interactive)
@@ -74,7 +76,9 @@
 
     (jss-replace-with-default-property
         (jss-remote-value value :test 'eq)
-      (insert "{expanding " (jss-remote-value-string value) "}"))
+      (insert "{expanding ")
+      (jss-remote-value-insert-description value)
+      (insert "}"))
     
     (lexical-let* ((buffer (current-buffer))
                    (value value)
@@ -83,7 +87,8 @@
                                  (jss-replace-with-default-property
                                      (jss-remote-value value :test 'eq)
                                    (let ((left-column (+ 2 (current-column))))
-                                     (insert (jss-remote-value-string value) " {\n")
+                                     (jss-remote-value-insert-description value)
+                                     (insert " {\n")
                                      (loop for first = t then nil
                                            for (prop . more) on properties
                                            do (indent-to-column left-column)

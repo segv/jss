@@ -100,11 +100,14 @@
     (loop
      for char across string
      do (case char
+          (?\s (jss-comment-char "_"))
           (?\t (jss-comment-char "\\t"))
           (?\n (jss-comment-char "\\n"))
           (?\r (jss-comment-char "\\r"))
           (?\f (jss-comment-char "\\f"))
-          (t (insert-and-inherit (char-to-string char)))))
+          (t
+           (insert-and-inherit (char-to-string char))
+           (remove-text-properties (1- (point)) (point) (list 'face t 'font-lock-face t)))))
     (when (string-match "[ \t\r\n\f]$" string)
       (jss-comment-char "$"))))
 

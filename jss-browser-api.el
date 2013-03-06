@@ -200,7 +200,12 @@ existing tab objects.")
        :initform (incf jss-remote-value-counter)
        :initarg :id)))
 
-(defgeneric jss-remote-value-string (remote-object))
+(defgeneric jss-remote-value-description (remote-object))
+
+(defgeneric jss-remote-value-insert-description (remote-object))
+
+(defmethod jss-remote-value-insert-description ((o jss-generic-remote-value))
+  (insert (jss-limit-string-length (jss-remote-value-description o) 60)))
 
 (defclass jss-generic-remote-primitive (jss-generic-remote-value)
   ((value :initarg :value :accessor jss-remote-primitive-value)))
@@ -208,45 +213,45 @@ existing tab objects.")
 (defclass jss-generic-remote-boolean (jss-generic-remote-primitive) ())
 
 (defclass jss-generic-remote-true (jss-generic-remote-boolean) ())
-(defmethod jss-remote-value-string ((object jss-generic-remote-true)) "true")
+(defmethod jss-remote-value-description ((object jss-generic-remote-true)) "true")
 
 (defclass jss-generic-remote-false (jss-generic-remote-boolean) ())
-(defmethod jss-remote-value-string ((object jss-generic-remote-false)) "false")
+(defmethod jss-remote-value-description ((object jss-generic-remote-false)) "false")
 
 (defclass jss-generic-remote-string (jss-generic-remote-primitive) ())
-(defmethod jss-remote-value-string ((string jss-generic-remote-string))
+(defmethod jss-remote-value-description ((string jss-generic-remote-string))
   (prin1-to-string (jss-remote-primitive-value string)))
 
 (defclass jss-generic-remote-number (jss-generic-remote-primitive) ())
-(defmethod jss-remote-value-string ((number jss-generic-remote-number))
+(defmethod jss-remote-value-description ((number jss-generic-remote-number))
   (let ((value (jss-remote-primitive-value number)))
     (if (integerp value)
         (format "%d" value)
       (format "%g" value))))
 
 (defclass jss-generic-remote-NaN (jss-generic-remote-primitive) ())
-(defmethod jss-remote-value-string ((object jss-generic-remote-NaN)) "NaN")
+(defmethod jss-remote-value-description ((object jss-generic-remote-NaN)) "NaN")
 
 (defclass jss-generic-remote-plus-infinity (jss-generic-remote-primitive) ())
-(defmethod jss-remote-value-string ((object jss-generic-remote-plus-infinity)) "+Inf")
+(defmethod jss-remote-value-description ((object jss-generic-remote-plus-infinity)) "+Inf")
 
 (defclass jss-generic-remote-minus-infinity (jss-generic-remote-primitive) ())
-(defmethod jss-remote-value-string ((object jss-generic-remote-minus-infinity)) "-Inf")
+(defmethod jss-remote-value-description ((object jss-generic-remote-minus-infinity)) "-Inf")
 
 (defclass jss-generic-remote-undefined (jss-generic-remote-primitive) ())
-(defmethod jss-remote-value-string ((object jss-generic-remote-undefined)) "undefined")
+(defmethod jss-remote-value-description ((object jss-generic-remote-undefined)) "undefined")
 
 (defclass jss-generic-remote-no-value (jss-generic-remote-primitive) ())
-(defmethod jss-remote-value-string ((object jss-generic-remote-no-value)) "no value.")
+(defmethod jss-remote-value-description ((object jss-generic-remote-no-value)) "no value.")
 
 (defclass jss-generic-remote-null (jss-generic-remote-primitive) ())
-(defmethod jss-remote-value-string ((object jss-generic-remote-null)) "null")
+(defmethod jss-remote-value-description ((object jss-generic-remote-null)) "null")
 
 (defclass jss-generic-remote-non-primitive (jss-generic-remote-value) ())
 
 (defclass jss-generic-remote-object (jss-generic-remote-non-primitive) ())
 
-(defmethod jss-remote-value-string ((object jss-generic-remote-object))
+(defmethod jss-remote-value-description ((object jss-generic-remote-object))
   (let ((class-name  (jss-remote-object-class-name object))
         (label  (jss-remote-object-label object)))
     (if (string= label class-name)

@@ -454,7 +454,7 @@
 (defun make-jss-webkit-evaluation-error (properties)
   (make-instance 'jss-webkit-evaluation-error :properties properties))
 
-(defmethod jss-remote-value-string ((error jss-webkit-evaluation-error))
+(defmethod jss-remote-value-description ((error jss-webkit-evaluation-error))
   (format "// error // code: %s; message: %s; data: %s"
           (cdr (assoc 'code (slot-value error 'properties)))
           (cdr (assoc 'message (slot-value error 'properties)))
@@ -501,9 +501,19 @@
 
 (defclass jss-webkit-remote-date (jss-generic-remote-object jss-webkit-remote-object-mixin) ())
 
+(defmethod jss-insert-remote-value ((date jss-webkit-remote-date))
+  (jss-remote-value-insert-description date))
+
 (defclass jss-webkit-remote-node (jss-generic-remote-object jss-webkit-remote-object-mixin) ())
 
 (defclass jss-webkit-remote-regexp (jss-generic-remote-object jss-webkit-remote-object-mixin) ())
+
+(defmethod jss-remote-value-insert-description ((rx jss-webkit-remote-regexp))
+  (jss-insert-with-highlighted-whitespace (jss-webkit-remote-object-description rx)))
+
+(defmethod jss-insert-remote-value ((rx jss-webkit-remote-regexp))
+  (let ((jss-remote-value-auto-expand-property-limit 0))
+    (call-next-method)))
 
 (defclass jss-webkit-remote-function   (jss-generic-remote-function)
   ((description :initarg :description :accessor jss-webkit-remote-object-description)
@@ -525,7 +535,7 @@
            (jss-deferred-errorback getter (list 'can-find-script-location 'functionId (jss-webkit-remote-object-id function)))))))
     getter))
 
-(defmethod jss-remote-value-string ((func jss-webkit-remote-function))
+(defmethod jss-remote-value-description ((func jss-webkit-remote-function))
   (replace-regexp-in-string "[ \t\n\r\f]+"
                             " "
                             (jss-webkit-remote-object-description func)))
@@ -571,9 +581,9 @@
                 (make-instance 'jss-generic-remote-null)
               (make-instance (cond
                               ((string= subtype "array")  'jss-webkit-remote-array)
-                              ;; ((string= subtype "date")   'jss-webkit-remote-date)
+                              ((string= subtype "date")   'jss-webkit-remote-date)
                               ;; ((string= subtype "node")   'jss-webkit-remote-node)
-                              ;; ((string= subtype "regexp") 'jss-webkit-remote-regexp)
+                              ((string= subtype "regexp") 'jss-webkit-remote-regexp)
                               (t                          'jss-webkit-remote-object))
                              :className (cdr (assoc 'className result))
                              :description (cdr (assoc 'description result))
