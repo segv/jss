@@ -102,9 +102,12 @@
 
 (defmethod jss-remote-value-expand ((value jss-generic-remote-function))
   (lexical-let ((tab (jss-current-tab)))
-    (jss-deferred-add-callback
-     (jss-remote-function-get-source-location value)
-     'jss-script-display-at-position)))
+    (jss-deferred-add-backs
+     (jss-remote-function-get-source-location value tab)
+     (lambda (location)
+       (apply 'jss-script-display-at-position location))
+     (lambda (error)
+       (message "No source location for function.")))))
 
 (defmethod jss-remote-value-expand ((value jss-generic-remote-array))
   (lexical-let ((tab (jss-current-tab))

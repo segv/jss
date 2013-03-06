@@ -256,7 +256,7 @@ existing tab objects.")
 (defmethod jss-remote-object-get-properties (object tab))
 
 (defclass jss-generic-remote-function (jss-generic-remote-non-primitive) ())
-(defmethod jss-remote-function-get-source-location (function))
+(defgeneric jss-remote-function-get-source-location (function))
 
 (defclass jss-generic-remote-array (jss-generic-remote-object) ())
 

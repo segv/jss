@@ -333,8 +333,7 @@
       (unless script-id
         (error "Want to get source-location of frame with no frame-id. %s :(" frame))
       (let ((tab (jss-debugger-tab (jss-frame-debugger frame))))
-        (setf (jss-tab-get-script tab script-id) (make-instance 'jss-webkit-script :properties (list (cons 'url (format "injected://%s" script-id))
-                                                                                                     (cons 'scriptId script-id))))
+        (setf (jss-tab-get-script tab script-id) (make-instance 'jss-webkit-script :properties (list (cons 'scriptId script-id))))
         (make-jss-completed-deferred
          :callback (list (jss-tab-get-script tab script-id)
                          (or line-number 0)
@@ -382,7 +381,8 @@
   ((properties :initarg :properties)))
 
 (defmethod jss-script-url ((script jss-webkit-script))
-  (cdr (assoc 'url (slot-value script 'properties))))
+  (or (cdr (assoc 'url (slot-value script 'properties)))
+      (format "injected://%s" (jss-script-id script))))
 
 (defmethod jss-script-id ((script jss-webkit-script))
   (cdr (assoc 'scriptId (slot-value script 'properties))))
@@ -507,16 +507,21 @@
   ((description :initarg :description :accessor jss-webkit-remote-object-description)
    (objectId    :initarg :objectId    :accessor jss-webkit-remote-object-id)))
 
-(defmethod jss-remote-function-get-location ((function jss-webkit-remote-function) tab)
-  (jss-deferred-then
-   (jss-webkit-send-request tab (list "Debugger.getFunctionDetails" (cons 'functionId (jss-webkit-remote-object-id function))))
-   (lambda (response)
-     (let* ((details (cdr (assoc 'details response)))
-            (location (cdr (assoc 'location details))))
-       (when location
-         (list (jss-tab-get-script tab (cdr (assoc 'scriptId location)))
-               (cdr (assoc 'lineNumber location))
-               (cdr (assoc 'columnNumber location))))))))
+(defmethod jss-remote-function-get-source-location ((function jss-webkit-remote-function) tab)
+  (lexical-let ((getter (make-jss-deferred))
+                (function function))
+    (jss-deferred-then
+     (jss-webkit-send-request tab (list "Debugger.getFunctionDetails" (cons 'functionId (jss-webkit-remote-object-id function))))
+     (lambda (response)
+       (let* ((details (cdr (assoc 'details response)))
+              (location (cdr (assoc 'location details)))
+              (script (jss-tab-get-script tab (cdr (assoc 'scriptId location)))))
+         (if (and script location)
+             (jss-deferred-callback getter (list script
+                                                 (cdr (assoc 'lineNumber location))
+                                                 (cdr (assoc 'columnNumber location))))
+           (jss-deferred-errorback getter (list 'can-find-script-location 'functionId (jss-webkit-remote-object-id function)))))))
+    getter))
 
 (defmethod jss-remote-value-string ((func jss-webkit-remote-function))
   (replace-regexp-in-string "[ \t\n\r\f]+"

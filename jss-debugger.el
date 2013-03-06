@@ -90,7 +90,7 @@
     (jss-deferred-add-backs
      (jss-frame-get-source-location frame)
      (lambda (location)
-       (jss-script-display-at-position (first location) (second location) (third location))))))
+       (apply 'jss-script-display-at-position location)))))
 
 (defun jss-frame-parts-locations (point)
   (let ((frame (get-text-property (point) 'jss-frame)))
