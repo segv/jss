@@ -400,21 +400,23 @@
   t)
 
 (defmethod jss-webkit-send-request ((tab jss-webkit-tab) request)
-  (let* ((ws (slot-value tab 'websocket))
-         (request-id (incf (slot-value tab 'request-counter)))
-         (payload (list* (cons 'id request-id)
-                         (cons 'method (first request))
-                         (when (rest request)
-                           (list (cons 'params (rest request))))))
-         (text (json-encode payload))
-         (deferred (make-jss-deferred)))
-    
-    (jss-log-event (list :websocket (jss-webkit-tab-debugger-url tab)
-                         payload
-                         text))
-    (setf (gethash request-id (slot-value tab 'requests)) deferred)
-    (websocket-send-text ws text)
-    deferred))
+  (let ((ws (slot-value tab 'websocket)))
+    (unless (websocket-openp ws)
+      (error "Websocket to tab %s is closed." (jss-tab-url tab)))
+    (let* ((request-id (incf (slot-value tab 'request-counter)))
+           (payload (list* (cons 'id request-id)
+                           (cons 'method (first request))
+                           (when (rest request)
+                             (list (cons 'params (rest request))))))
+           (text (json-encode payload))
+           (deferred (make-jss-deferred)))
+      
+      (jss-log-event (list :websocket (jss-webkit-tab-debugger-url tab)
+                           payload
+                           text))
+      (setf (gethash request-id (slot-value tab 'requests)) deferred)
+      (websocket-send-text ws text)
+      deferred)))
 
 (defclass jss-webkit-console (jss-generic-console)
   ((messages :initform (make-hash-table) :accessor jss-webkit-console-messages)))
@@ -597,8 +599,10 @@
                                     "Failed to cleanup object group %s" (jss-webkit-object-group console)))
 
 (defmethod jss-console-close ((console jss-webkit-console))
-  (jss-console-clear console)
-  (websocket-close (slot-value (jss-console-tab console) 'websocket)))
+  (let ((ws (slot-value (jss-console-tab console) 'websocket)))
+    (when (websocket-openp ws)
+      (jss-console-clear console)
+      (websocket-close ws))))
 
 (define-jss-webkit-notification-handler "Console.messageAdded" (message)
   (jss-console-format-message console
