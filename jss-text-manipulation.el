@@ -43,18 +43,36 @@
 
 (defun jss-next-button ()
   (interactive)
-  (when (get-text-property (point) 'jss-button)
-    ;; in a button, move past it
-    (goto-char (or (next-single-property-change (point) 'jss-button)
-                   (point-max))))
-  (let ((next-button (next-single-property-change (point) 'jss-button)))
-    (if next-button
-        (goto-char next-button)
-      (goto-char (point-min))
-      (unless (get-text-property (point) 'jss-button) ; if buffer starts with a button just stay here
-        (setf next-button (next-single-property-change (point) 'jss-button))
-        (when next-button
-          (goto-char next-button))))))
+  (let ((target nil))
+    (save-excursion
+      (when (get-text-property (point) 'jss-button)
+        (goto-char (jss-end-of-current-property-block 'jss-button)))
+      (let ((next (jss-start-of-next-property-block 'jss-button nil)))
+        (if next
+            (setf target next)
+          (goto-char (point-min))
+          (setf target (jss-start-of-next-property-block 'jss-button nil)))))
+    (when target
+      (goto-char target))))
+
+(defun jss-previous-button ()
+  (interactive)
+  (let ((target nil))
+    (save-excursion
+      (when (get-text-property (point) 'jss-button)
+        (goto-char (jss-start-of-current-property-block 'jss-button))
+        (if (bobp)
+            (goto-char (point-max))
+          (backward-char 1)))
+      (let ((prev (jss-end-of-previous-property-block 'jss-button nil)))
+        (if prev
+            (setf target prev)
+          (goto-char (point-max))
+          (setf target (jss-end-of-previous-property-block 'jss-button nil)))))
+    (when target
+      (goto-char target)
+      (backward-char 1)
+      (goto-char (jss-start-of-current-property-block 'jss-button)))))
 
 (defun jss-log-event (event)
   (with-current-buffer (get-buffer-create " *jss-events*")
@@ -101,7 +119,7 @@
   (or (get-text-property (point) property-name)
       (previous-single-property-change (point) property-name)))
 
-(defun jss-start-of-next-property-block (property-name)
+(defun* jss-start-of-next-property-block (property-name &optional (error t))
   (block nil
     (when (get-text-property (point) property-name)
       (return (jss-start-of-current-property-block property-name)))
@@ -110,11 +128,13 @@
         (return (goto-char next-change)))
       (while (not (get-text-property (point) property-name))
         (when (= (point) (point-max))
-          (error "Unable to find start of next block with property %s" property-name))
+          (if error
+              (error "Unable to find start of next block with property %s" property-name)
+            (return nil)))
         (forward-char 1))
       (return (point)))))
 
-(defun jss-end-of-previous-property-block (property-name)
+(defun* jss-end-of-previous-property-block (property-name &optional (error t))
   (block nil
     (when (get-text-property (point) property-name)
       (return (jss-end-of-current-property-block property-name)))
@@ -126,7 +146,9 @@
         (return (goto-char previous-change)))
       (while (not (get-text-property (point) property-name))
         (when (= (point) (point-min))
-          (error "Unable to find previous block with property %s" property-name))
+          (if error
+              (error "Unable to find previous block with property %s" property-name)
+            (return nil)))
         (backward-char 1))
       (return (point)))))
 

@@ -5,6 +5,7 @@
   t)
 
 (define-key jss-super-mode-map (kbd "TAB") 'jss-next-button)
+(define-key jss-super-mode-map (kbd "<backtab>") 'jss-previous-button)
 
 (require 'jss-text-manipulation)
 (require 'jss-browser-api)
