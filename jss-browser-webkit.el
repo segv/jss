@@ -333,7 +333,7 @@
       (unless script-id
         (error "Want to get source-location of frame with no frame-id. %s :(" frame))
       (let ((tab (jss-debugger-tab (jss-frame-debugger frame))))
-        (setf (jss-tab-get-script tab script-id) (make-instance 'jss-webkit-script :properties (list (cons 'url "#injected")
+        (setf (jss-tab-get-script tab script-id) (make-instance 'jss-webkit-script :properties (list (cons 'url (format "injected://%s" script-id))
                                                                                                      (cons 'scriptId script-id))))
         (make-jss-completed-deferred
          :callback (list (jss-tab-get-script tab script-id)
