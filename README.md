@@ -66,6 +66,7 @@ Keys:
 * C-c C-r - reload current tab
 * RET - If point is on a request link (an underlined url) goto io buffer
 * TAB - goto next request link
+* C-c C-i - expand the nearst object at point (useful to quickly expand the previous result)
 
 ## The Debugger
 
