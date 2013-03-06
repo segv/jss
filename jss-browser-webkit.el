@@ -585,14 +585,14 @@
                      (lambda (response)
                        (loop for r across (cdr (assoc 'result response)) collect r))))
 
-(defmethod jss-console-cleanup ((console jss-webkit-console))
+(defmethod jss-console-clear ((console jss-webkit-console))
   (jss-webkit-send-request-or-error (jss-console-tab console)
                                     (list "Runtime.releaseObjectGroup"
                                           (cons 'objectGroup (jss-webkit-object-group console)))
                                     "Failed to cleanup object group %s" (jss-webkit-object-group console)))
 
 (defmethod jss-console-close ((console jss-webkit-console))
-  (jss-console-cleanup console)
+  (jss-console-clear console)
   (websocket-close (slot-value (jss-console-tab console) 'websocket)))
 
 (define-jss-webkit-notification-handler "Console.messageAdded" (message)
