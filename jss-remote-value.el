@@ -4,9 +4,22 @@
 
 (defmethod jss-insert-remote-value ((value jss-generic-remote-non-primitive))
   (let ((start (point)))
-    (jss-wrap-with-text-properties (list 'jss-remote-value value)
+    (jss-wrap-with-text-properties (list 'jss-remote-value value 'jss-remote-value-collapsed t)
       (insert (jss-limit-string-length (jss-remote-value-string value) 60)))
     (jss-add-text-button start (point) 'jss-remote-value-expand-at-point)))
+
+(defvar jss-remote-value-auto-expand-property-limit 5)
+
+(defvar jss-remote-value-expand/pre-computed-properties nil)
+
+(defmethod jss-insert-remote-value :after ((value jss-generic-remote-object))
+  (lexical-let ((value value))
+    (jss-deferred-add-callback
+     (jss-remote-object-get-properties value (jss-current-tab))
+     (lambda (properties)
+       (when (<= (length properties) jss-remote-value-auto-expand-property-limit)
+         (let ((jss-remote-value-expand/pre-computed-properties properties))
+           (jss-remote-value-expand value)))))))
 
 (defun jss-remote-value-expand-at-point ()
   (interactive)
@@ -50,28 +63,42 @@
           (when (= (point) end)
             (return)))))))
 
+(defmethod jss-remote-value-collapsed ((value jss-generic-remote-object))
+  (let ((loc (jss-find-property-block 'jss-remote-value value)))
+    (save-excursion
+      (goto-char (car loc))
+      (get-text-property (point) 'jss-remote-value-collapsed))))
+
 (defmethod jss-remote-value-expand ((value jss-generic-remote-object))
-  (jss-replace-with-default-property
-      (jss-remote-value value :test 'eq)
-    (insert "{expanding " (jss-remote-value-string value) "}")
-    (lexical-let ((buffer (current-buffer))
-                  (value value))
-      (jss-deferred-add-callback
-       (jss-remote-object-get-properties value (jss-current-tab))
-       (lambda (properties)
-         (with-current-buffer buffer
-           (jss-replace-with-default-property
-               (jss-remote-value value :test 'eq)
-             (let ((left-column (+ 2 (current-column))))
-               (insert (jss-remote-value-string value) " {\n")
-               (loop for first = t then nil
-                     for (prop . more) on properties
-                     do (indent-to-column left-column)
-                     do (insert (car prop) ":")
-                     do (jss-insert-remote-value (cdr prop))
-                     when more
-                     do (insert ",\n"))
-               (insert "}")))))))))
+  (when (jss-remote-value-collapsed value)
+
+    (jss-replace-with-default-property
+        (jss-remote-value value :test 'eq)
+      (insert "{expanding " (jss-remote-value-string value) "}"))
+    
+    (lexical-let* ((buffer (current-buffer))
+                   (value value)
+                   (expander (lambda (properties)
+                               (with-current-buffer buffer
+                                 (jss-replace-with-default-property
+                                     (jss-remote-value value :test 'eq)
+                                   (let ((left-column (+ 2 (current-column))))
+                                     (insert (jss-remote-value-string value) " {\n")
+                                     (loop for first = t then nil
+                                           for (prop . more) on properties
+                                           do (indent-to-column left-column)
+                                           do (jss-insert-with-highlighted-whitespace (car prop))
+                                           do (insert ": ")
+                                           do (jss-insert-remote-value (cdr prop))
+                                           when more
+                                           do (insert ",\n"))
+                                     (insert "}")))))))
+
+      (if jss-remote-value-expand/pre-computed-properties
+          (funcall expander jss-remote-value-expand/pre-computed-properties)
+        (jss-deferred-add-callback
+         (jss-remote-object-get-properties value (jss-current-tab))
+         expander)))))
 
 (defmethod jss-remote-value-expand ((value jss-generic-remote-function))
   (lexical-let ((tab (jss-current-tab)))
