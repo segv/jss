@@ -11,47 +11,51 @@
   (setf jss-current-io-object jss-io
         (jss-io-buffer jss-io) (current-buffer))
       
+  (insert "Request: ")
   (jss-insert-with-highlighted-whitespace (jss-io-request-method jss-io))
   (insert " ")
   (jss-insert-with-highlighted-whitespace (jss-io-request-url jss-io))
   (insert "\n")
+
+  (insert "Response: ")
   (if (jss-io-response-status jss-io)
       (insert (jss-io-response-status jss-io))
-    (insert "--no response--"))
+    (insert "None received."))
   (insert "\n")
-  
-  (jss-section-marker)
-  
-  (insert "Request Headers: ") (jss-insert-button "[view raw]" 'jss-toggle-request-headers-raw)
-  (insert "\n")
-  (jss-wrap-with-text-properties `(jss-request-headers t)
-    (jss-io-insert-header-table (jss-io-request-headers jss-io) :indent 2))
-  (jss-section-marker)
-  
+
+  (jss-toggling-visibility
+   (lambda ()
+     (insert "Request Headers: ")
+     (jss-insert-button "[view raw]" 'jss-toggle-request-headers-raw)
+     (insert "\n"))
+   (lambda ()
+     (jss-wrap-with-text-properties `(jss-request-headers t)
+       (jss-io-insert-header-table (jss-io-request-headers jss-io) :indent 2))))
+    
   (insert "Request Data: ") (jss-insert-button "[view raw]" 'jss-toggle-request-data-raw) (insert "\n")
-  (jss-section-marker)
   
   (when (jss-io-response-status jss-io)
-    (insert "Response:\n")
-    (insert (jss-io-response-status jss-io) "\n")
-    (jss-section-marker)
-    (insert "Response Headers: ") (jss-insert-button "[view raw]" 'jss-toggle-response-headers-raw) (insert "\n")
-    (jss-wrap-with-text-properties `(jss-response-headers t)
-      (jss-io-insert-header-table (jss-io-response-headers jss-io) :indent 2))
-    (jss-section-marker)
-        
-    (insert "Response Data: ")
-    (jss-insert-button "[view raw] " 'jss-toggle-response-data-raw)
-    (when (jss-io-response-content-type jss-io)
-      (insert "type: " (jss-io-response-content-type jss-io)))
-    (when (jss-io-response-content-length jss-io)
-      (insert "length: " (jss-io-response-content-length jss-io)))
-    (insert "\n")
-    (let ((data (jss-io-response-data jss-io)))
-      (when data
-        (jss-io-insert-response-data jss-io)))
-    
-    (jss-section-marker))
+    (jss-toggling-visibility
+     (lambda ()
+       (insert "Response Headers: ") (jss-insert-button "[view raw]" 'jss-toggle-response-headers-raw) (insert "\n"))
+     (lambda ()
+       (jss-wrap-with-text-properties `(jss-response-headers t)
+         (jss-io-insert-header-table (jss-io-response-headers jss-io) :indent 2))))
+
+    (jss-toggling-visibility
+     (lambda ()
+       (insert "Response Data: ")
+       (jss-insert-button "[view raw] " 'jss-toggle-response-data-raw)
+       (when (jss-io-response-content-type jss-io)
+         (insert "type: " (jss-io-response-content-type jss-io)))
+       (when (jss-io-response-content-length jss-io)
+         (insert "length: " (jss-io-response-content-length jss-io)))
+       (insert "\n"))
+     (lambda ()
+       (let ((data (jss-io-response-data jss-io)))
+         (if data
+             (jss-io-insert-response-data jss-io)
+           (insert "no data."))))))
 
   (read-only-mode 1)
   (goto-char (point-min)))
