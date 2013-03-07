@@ -221,4 +221,31 @@
               (substring string (- (length string) (/ max-length 2)) (length string)))
       string))
 
+(defun jss-toggling-visibility (header body)
+  (let (header-start
+        header-end
+        body-start
+        body-end)
+    (setf header-start (point))
+    (funcall header)
+    (setf header-end (point))
+    (setf body-start (point))
+    (funcall body)
+    (setf body-end (point))
+    (lexical-let ((body-overlay (make-overlay body-start body-end))
+                  (header-overlay (make-overlay header-start header-end)))
+      (overlay-put body-overlay 'invisible t)
+      (overlay-put header-overlay
+                   'keymap
+                   (let ((map (make-sparse-keymap)))
+                     (define-key map (kbd "t")
+                       (lambda () (interactive)
+                         (overlay-put body-overlay 'invisible
+                                      (not (overlay-get body-overlay 'invisible)))
+                         (overlay-put body-overlay 'before-string
+                                      (when (overlay-get body-overlay 'invisible)
+                                        "...\n"))))
+                     map))
+      (overlay-put body-overlay 'before-string "...\n"))))
+
 (provide 'jss-text-manipulation)
