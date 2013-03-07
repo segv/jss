@@ -129,15 +129,14 @@
           (insert "Source location: ")
           (jss-insert-with-highlighted-whitespace (jss-frame-source-hint frame))
           (insert "\n")))
-      (insert "Scope:\n")
-      (insert "--not yet implemented--\n")
       (jss-section-marker))))
 
 (defmacro define-jss-debugger-step-function (name method)
   `(defun ,name ()
      (interactive)
      (,method (jss-current-debugger))
-     (kill-buffer (current-buffer))))
+     (when (buffer-live-p (current-buffer))
+       (kill-buffer (current-buffer)))))
 
 (define-jss-debugger-step-function jss-debugger-stepper-resume    jss-debugger-resume)
 (define-jss-debugger-step-function jss-debugger-stepper-step-into jss-debugger-step-into)
