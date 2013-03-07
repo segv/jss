@@ -1,4 +1,3 @@
-
 (define-derived-mode jss-script-mode jss-super-mode "JSS Script"
   ""
   (setf buffer-read-only t))
@@ -20,7 +19,7 @@
              (insert body)))
          (jss-script-mark-offset script line-number column-number))))))
 
-(defface jss-script-line-marker-face '((t :background "grey60"))
+(defface jss-script-line-marker-face '((t :inherit highlight))
   "Face used to highlight the area around point.")
 
 (defmethod jss-script-mark-offset ((script jss-generic-script) line-number column-number)
