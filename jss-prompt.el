@@ -43,30 +43,23 @@
                                :submit-function submit-function
                                :buffer (current-buffer)
                                :history history))
-        (inhibit-read-only t))
-    (jss-wrap-with-text-properties (list 'jss-prompt prompt)
+        (inhibit-read-only t)
+        (input-overlay (make-overlay (point) (point) (current-buffer) nil t)))
+    
+    (overlay-put input-overlay 'keymap jss-prompt-map)
+    
+    (jss-wrap-with-text-properties (list 'jss-prompt prompt
+                                         'jss-prompt-input input-overlay)
 
       (jss-wrap-with-text-properties (list 'read-only t
                                            'rear-nonsticky t
                                            'jss-prompt-marker t)
-        (insert ">"))
+        (insert "> "))
 
-      (jss-wrap-with-text-properties (list 'read-only nil
-                                           'jss-prompt-input t
-                                           'keymap jss-prompt-map)
-        (insert " ")))))
-
-(defmethod jss-prompt-start-of-input ((prompt jss-prompt))
-  (save-excursion
-    (goto-char (car (jss-find-property-block 'jss-prompt prompt :test 'eq)))
-    (goto-char (jss-start-of-next-property-block 'jss-prompt-input))
-    (point)))
-
-(defmethod jss-prompt-end-of-input ((prompt jss-prompt))
-  (save-excursion
-    (goto-char (jss-prompt-start-of-input prompt))
-    (goto-char (jss-end-of-current-property-block 'jss-prompt-input))
-    (point)))
+      (let ((start (point)))
+        (insert "\n")
+        (move-overlay input-overlay start (point))))
+    (backward-char 1)))
 
 (defmethod jss-prompt-start-of-output ((prompt jss-prompt))
   (save-excursion
@@ -87,10 +80,10 @@
 
 (defun jss-prompt-next-input ()
   (jss-start-of-next-property-block 'jss-prompt)
-  (jss-end-of-current-property-block 'jss-prompt-marker)
-  (when (and (get-text-property (point) 'jss-prompt-input)
-             (looking-at " "))
-    (forward-char 1)))
+  (let ((overlay (get-text-property (point) 'jss-prompt-input)))
+    (if overlay
+        (goto-char (overlay-start overlay))
+      (error "Unable to find next input."))))
 
 (defun* jss-prompt-current-prompt (&optional (warn t))
   "Returns the prompt object around point. Uses some heuristics
@@ -106,18 +99,23 @@
           (return (get-text-property (point) 'jss-prompt))))
       (warn "Not currently in a prompt."))))
 
-(defmethod jss-prompt-input-location ((prompt jss-prompt))
+(defmethod jss-prompt-input-overlay ((prompt jss-prompt))
   (with-current-buffer (jss-prompt-buffer prompt)
     (save-excursion
       (let* ((location (jss-find-property-block 'jss-prompt prompt :test 'eq))
-             (start (car location)))
-        (goto-char start)
-        (let ((input-start (jss-start-of-next-property-block 'jss-prompt-input))
-              (input-end   (jss-end-of-current-property-block 'jss-prompt-input)))
-          (when (or (< (cdr location) input-start)
-                    (< (cdr location) input-end))
-            (error "prompt-input for prompt %s is outside of the prompt itself." prompt))
-          (cons input-start input-end))))))
+             (overlay (get-text-property (car location) 'jss-prompt-input)))
+        (or overlay
+            (error "Unable to find input overlay for %s." prompt))))))
+
+(defmethod jss-prompt-input-location ((prompt jss-prompt))
+  (let ((overlay (jss-prompt-input-overlay prompt)))
+    (cons (overlay-start overlay) (overlay-end overlay))))
+
+(defmethod jss-prompt-start-of-input ((prompt jss-prompt))
+  (car (jss-prompt-input-location prompt)))
+
+(defmethod jss-prompt-end-of-input ((prompt jss-prompt))
+  (cdr (jss-prompt-input-location prompt)))
 
 (defmethod jss-prompt-input-text ((prompt jss-prompt))
   (with-current-buffer (jss-prompt-buffer prompt)
@@ -153,18 +151,20 @@ Supply a prefix arg to force sending the current text"
 (defmethod jss-prompt-submit ((prompt jss-prompt))
   (push (jss-prompt-input-text prompt) jss-prompt-input-history)
   (setf jss-prompt-input-history/last-inserted jss-prompt-input-history)
-  (let ((inhibit-read-only t))
-    (goto-char (jss-prompt-start-of-input prompt))
-    (jss-wrap-with-text-properties (list 'read-only t)
-      (goto-char (jss-prompt-end-of-input prompt)))
-    (jss-wrap-with-text-properties (list 'read-only t
-                                         'jss-prompt-output t
-                                         'jss-prompt prompt)
-      (insert "\n// Evaluating..."))
-    
+  (let ((inhibit-read-only t)
+        (overlay (jss-prompt-input-overlay prompt)))
     (lexical-let ((current-buffer (current-buffer))
                   (prompt prompt)
                   (input-text (jss-prompt-input-text prompt)))
+      (add-text-properties (overlay-start overlay) (overlay-end overlay)
+                           (list 'read-only t))
+      (goto-char (overlay-end overlay))
+      (delete-overlay overlay)
+      (jss-wrap-with-text-properties (list 'read-only t
+                                           'jss-prompt-output t
+                                           'jss-prompt prompt)
+        (insert "\n// Evaluating..."))
+      
       (setf (jss-prompt-active-p prompt) nil)
       (jss-deferred-add-backs
        (funcall (jss-prompt-submit-function prompt) input-text)
