@@ -47,6 +47,7 @@
         (input-overlay (make-overlay (point) (point) (current-buffer) nil t)))
     
     (overlay-put input-overlay 'keymap jss-prompt-map)
+    (overlay-put input-overlay 'face 'highlight)
     
     (jss-wrap-with-text-properties (list 'jss-prompt prompt
                                          'jss-prompt-input input-overlay)
