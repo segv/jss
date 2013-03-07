@@ -194,7 +194,7 @@ Keys
     (jss-before-last-prompt)
     (let ((inhibit-read-only t))
       (delete-region (point-min) (point)))
-    (goto-char (point-max))))
+    (jss-prompt-next-input)))
 
 (defun jss-console-reload-page ()
   (interactive)
