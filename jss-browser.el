@@ -66,15 +66,21 @@ ability to attach a console to a particular tab."
            (insert "\nConnection error:\n\n" (prin1-to-string error))
            (signal (first error) (rest error) )))))))
 
-(defstruct jss-browser
-  connector
-  label)
+(defclass jss-browser-connection-details ()
+  ((label         :accessor jss-browser-spec-label :initarg :label)
+   (browser-class :accessor jss-browser-spec-class :initarg :class)
+   (default-host  :accessor jss-browser-spec-default-host :initarg :default-host :initform "127.0.0.1")
+   (default-port  :accessor jss-browser-spec-default-port :initarg :default-port)))
 
 (defcustom jss-browsers
-  (list (make-jss-browser :connector 'jss-webkit-connect
-                          :label "webkit")
-        (make-jss-browser :connector 'jss-firefox-connect
-                          :label "firefox"))
+  (list (make-instance 'jss-browser-connection-details
+                      :label "webkit"
+                      :default-port "9222"
+                      :class 'jss-webkit-browser)
+        (make-instance 'jss-browser-connection-details
+                       :label "firefox"
+                       :default-port "6000"
+                       :class 'jss-firefox-browser))
   "List of known browsers"
   :group 'jss)
 
@@ -88,14 +94,20 @@ ability to attach a console to a particular tab."
   (interactive (list (let ((completion-ignore-case t))
                        (completing-read "Browser: "
                                         (mapcar (lambda (browser-spec)
-                                                  (cons (jss-browser-label browser-spec) browser-spec))
+                                                  (cons (jss-browser-spec-label browser-spec) browser-spec))
                                                 jss-browsers)
                                         nil
                                         t
                                         (first jss-connect/select-browser-history)
                                         'jss-connect/select-browser-history))))
-  (let ((browser-spec (find browser-label jss-browsers :key 'jss-browser-label :test 'string=)))
+  (let ((browser-spec (find browser-label jss-browsers :key 'jss-browser-spec-label :test 'string=)))
     (assert browser-spec nil "Unable to find browser named %s" browser-spec)
-    (call-interactively (jss-browser-connector browser-spec))))
+    (let ((host (read-from-minibuffer "Host: " (jss-browser-spec-default-host browser-spec)))
+          (port (read-from-minibuffer "Port: " (jss-browser-spec-default-port browser-spec))))
+      (with-current-buffer (get-buffer-create (format "*JSS Webkit @%s:%s*" host port))
+        (switch-to-buffer (current-buffer))
+        (jss-browser-mode* (make-instance (jss-browser-spec-class browser-spec)
+                                          :host host
+                                          :port port))))))
 
 (provide 'jss-browser)
