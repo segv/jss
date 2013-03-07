@@ -115,6 +115,14 @@
       (insert (jss-io-fontify-data (jss-io-response-data io) 'css-mode)))
      ((cl-member content-type '("application/javascript" "text/javascript") :test 'string=)
       (insert (jss-io-fontify-data (jss-io-response-data io) 'js2-mode)))
+     ((cl-member content-type '("application/json") :test 'string=)
+      (let (parsed)
+        (with-temp-buffer
+          (insert (jss-io-response-data io))
+          (goto-char (point-min))
+          (setf parsed (json-read))
+          (message "Parsed %s to %s" (buffer-substring-no-properties (point-min) (point-max)) parsed))
+        (insert (pp-to-string parsed))))
      (t
       (insert "Unrecognized content type: " (or  content-type "---") "\n")
       (insert (jss-io-response-data io))))))
