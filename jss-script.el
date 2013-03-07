@@ -24,6 +24,7 @@
   "Face used to highlight the area around point.")
 
 (defmethod jss-script-mark-offset ((script jss-generic-script) line-number column-number)
+  (message "Going to mark %s:%s of %s" line-number column-number (jss-script-url script))
   (with-current-buffer (jss-script-buffer script)
     (let ((inhibit-read-only t))
       (goto-char (point-min))
@@ -31,7 +32,8 @@
       (dolist (o (overlays-in (point-min) (point-max)))
         (delete-overlay o))
       (forward-line line-number)
-      (forward-char column-number)
+      (ignore-errors
+        (forward-char column-number))
       (let ((marker-point (point))
             (inhibit-read-only t))
         (let (start end)
@@ -49,8 +51,7 @@
             (overlay-put overlay 'face 'jss-script-line-marker-face))
           (let ((overlay (make-overlay (min (point-max) (1+ marker-point)) end
                                        (current-buffer))))
-            (overlay-put overlay 'face 'jss-script-line-marker-face))
-          )
+            (overlay-put overlay 'face 'jss-script-line-marker-face)))
         (goto-char marker-point)))
     (display-buffer (current-buffer))
     (let ((recenter-redislay t))
