@@ -82,8 +82,10 @@
    jss-debugger
    (lambda (url debugger)
      (save-match-data
-       (when (string-match ".*/jquery[-.0-9]+\\(min\\)\\.js$" url)
-         t)))))
+       (message "Testing for jquery-ness of %s." url)
+       (if (string-match ".*/jquery[-.0-9]*\\(\\.min\\)?\\.js$" url)
+           (format "%s looks like a jquery library." url)
+         nil)))))
 
 (defun jss-is-3rd-party-exception (jss-debugger)
   (jss-with-first-stack-frame-url
@@ -95,7 +97,9 @@
                 (script-host (url-host script-url))
                 (tab-url (url-generic-parse-url tab-url))
                 (tab-host (url-host tab-url)))
-           (not (string= tab-host script-host))))))))
+           (if (string= tab-host script-host)
+               nil
+             (format "%s is not %s" script-host tab-host))))))))
 
 (setf jss-debugger-auto-resume-functions (list 'jss-is-jquery-exception
                                                'jss-is-3rd-party-exception))
@@ -140,12 +144,18 @@ of the debugger after this function returns."
       (lexical-let* ((func func)
                      (cond (funcall func jss-debugger))
                      (handler (lambda (value)
-                                (when (eql t value)
+                                (when value
                                   (when (buffer-live-p buffer)
                                     (with-current-buffer buffer
-                                      (jss-console-warn-message (jss-tab-console (jss-debugger-tab jss-debugger))
-                                                                "%s triggered auto-resume."
-                                                                func)
+                                      (if (stringp value)
+                                          (jss-console-warn-message (jss-tab-console (jss-debugger-tab jss-debugger))
+                                                                    "%s triggered auto-resume: %s"
+                                                                    func
+                                                                    value)
+                                        (jss-console-warn-message (jss-tab-console (jss-debugger-tab jss-debugger))
+                                                                  "%s triggered auto-resume: %s"
+                                                                  func
+                                                                  value))
                                       (jss-debugger-stepper-resume)))))))      
         ;; this code may actually trigger the handler immediately, so
         ;; the current buffer and debugger state may change.
