@@ -107,26 +107,30 @@
   (add-hook 'kill-buffer-hook 'jss-debugger-kill nil t)
   (widen)
   (delete-region (point-min) (point-max))
-
-  (jss-debugger-call-auto-resumes (jss-current-debugger))
-  (unless (jss-current-debugger)
-    (error "JSS-CURRENT-DEBUGGER has disappeared."))
-  (jss-debugger-insert-message (jss-current-debugger))
-  (unless (bolp) (insert "\n"))
-  (insert "Paused on ")
-  (jss-wrap-with-text-properties (list 'jss-debugger-exception t)
-    (jss-insert-remote-value (jss-debugger-exception (jss-current-debugger))))
-  (insert "\n\n")
-  (loop
-   initially (setf jss-debugger-num-frames 0)
-   for frame in (jss-debugger-stack-frames jss-debugger)
-   do (incf jss-debugger-num-frames)
-   do (jss-debugger-insert-frame frame (1- jss-debugger-num-frames)))
-  (goto-char (car (jss-find-property-block 'jss-debugger-exception t)))
-  (setf buffer-read-only t)
-  t)
+  (let ((buffer (current-buffer)))
+    (jss-debugger-call-auto-resumes (jss-current-debugger))
+    (when (buffer-live-p buffer)
+      (with-current-buffer buffer
+        (jss-debugger-insert-message (jss-current-debugger))
+        (unless (bolp) (insert "\n"))
+        (insert "Paused on ")
+        (jss-wrap-with-text-properties (list 'jss-debugger-exception t)
+          (jss-insert-remote-value (jss-debugger-exception (jss-current-debugger))))
+        (insert "\n\n")
+        (loop
+         initially (setf jss-debugger-num-frames 0)
+         for frame in (jss-debugger-stack-frames jss-debugger)
+         do (incf jss-debugger-num-frames)
+         do (jss-debugger-insert-frame frame (1- jss-debugger-num-frames)))
+        (goto-char (car (jss-find-property-block 'jss-debugger-exception t)))
+        (setf buffer-read-only t)))
+    t))
 
 (defun jss-debugger-call-auto-resumes (jss-debugger)
+  "Call the auto-resume functions to see if we should just abort this debugger.
+
+NB: May kill the current buffer. Callers should check the state
+of the debugger after this function returns."
   ;; nb: some of the async code run to compute 'should ve resume' may
   ;; change buffers (it shouldn't, but i haven't yet figured out why),
   ;; so grab the buffer here before running that other code.
