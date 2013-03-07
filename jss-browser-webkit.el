@@ -664,13 +664,12 @@
     nil))
 
 (defmethod jss-io-response-status ((io jss-webkit-io))
-  (flet ((make-status-line (response)
-                           (format "%s %s"
-                                   (cdr (assoc 'status response))
-                                   (cdr (assoc 'statusText response)))))
-    (if (assoc 'redirectResponse (jss-webkit-io-properties io))
-        (make-status-line (cdr (assoc 'redirectResponse (jss-webkit-io-properties io))))
-      (make-status-line (jss-webkit-io-response io)))))
+  (let ((response (if (assoc 'redirectResponse (jss-webkit-io-properties io))
+                      (cdr (assoc 'redirectResponse (jss-webkit-io-properties io)))
+                    (jss-webkit-io-response io))))
+    (format "%s %s"
+            (cdr (assoc 'status response))
+            (cdr (assoc 'statusText response)))))
 
 (defmethod jss-io-id ((io jss-webkit-io))
   (cdr (assoc 'requestId (jss-webkit-io-properties io))))
