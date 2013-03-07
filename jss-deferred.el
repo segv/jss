@@ -28,14 +28,21 @@
 (defmacro appendf (place &rest elements)
   `(setf ,place (append ,place ,@elements)))
 
+(defun jss-deferred-funcall (back value)
+  (funcall back value)
+  ;(condition-case e
+  ;    (funcall back value)
+  ;  (error (message "got error.")))
+  )
+
 (defmethod jss-deferred-add-callback ((d jss-deferred) callback)
   (if (eql :ok (car (jss-deferred-state d)))
-      (funcall callback (cdr (jss-deferred-state d)))
+      (jss-deferred-funcall callback (cdr (jss-deferred-state d)))
     (appendf (jss-deferred-callbacks d) (list callback))))
 
 (defmethod jss-deferred-add-errorback ((d jss-deferred) errorback)
   (if (eql :fail (car (jss-deferred-state d)))
-      (funcall errorback (cdr (jss-deferred-state d)))
+      (jss-deferred-funcall errorback (cdr (jss-deferred-state d)))
     (appendf (jss-deferred-errorbacks d) (list errorback))))
 
 (defmethod jss-deferred-add-backs ((d jss-deferred) &optional callback errorback)
@@ -46,13 +53,13 @@
 
 (defmethod jss-deferred-callback ((d jss-deferred) value)
   (while (jss-deferred-callbacks d)
-    (funcall (pop (jss-deferred-callbacks d)) value))
+    (jss-deferred-funcall (pop (jss-deferred-callbacks d)) value))
   (setf (jss-deferred-state d) (cons :ok value))
   value)
 
 (defmethod jss-deferred-errorback ((d jss-deferred) value)
   (while (jss-deferred-errorbacks d)
-    (funcall (pop (jss-deferred-errorbacks d)) value))
+    (jss-deferred-funcall (pop (jss-deferred-errorbacks d)) value))
   (setf (jss-deferred-state d) (cons :fail value))
   value)
 
