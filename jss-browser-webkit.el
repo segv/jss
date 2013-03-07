@@ -321,10 +321,9 @@
         (error "Want to get source-location of frame with no frame-id. %s :(" frame))
       (let ((tab (jss-debugger-tab (jss-frame-debugger frame))))
         (setf (jss-tab-get-script tab script-id) (make-instance 'jss-webkit-script :properties (list (cons 'scriptId script-id))))
-        (make-jss-completed-deferred
-         :callback (list (jss-tab-get-script tab script-id)
-                         (or line-number 0)
-                         (or column-number 0)))))))
+        (make-jss-completed-deferred :callback (list (jss-tab-get-script tab script-id)
+                                                     (or line-number 0)
+                                                     (or column-number 0)))))))
 
 (define-jss-webkit-notification-handler "Debugger.breakpointResolved" (breakpointId location)
   t)
