@@ -16,13 +16,14 @@
 (defun jss-autoexpand-small-remote-object (object max-property-length)
   (when jss-remote-value-auto-expand-property-limit
     (lexical-let ((object object)
-                  (max-property-length max-property-length))
+                  (max-property-length max-property-length)
+                  (buffer (current-buffer)))
       (jss-deferred-add-callback
        (jss-remote-object-get-properties object (jss-current-tab))
        (lambda (properties)
          (when (and jss-remote-value-auto-expand-property-limit
                     (<= (length properties) max-property-length))
-           (jss-remote-value-replace-with-properties object (current-buffer) properties)))))))
+           (jss-remote-value-replace-with-properties object properties buffer)))))))
 
 (defun jss-remote-value-expand-at-point ()
   (interactive)
@@ -88,39 +89,40 @@
       (jss-deferred-add-callback
        (jss-remote-object-get-properties value (jss-current-tab))
        (lambda (properties)
-         (jss-remote-value-replace-with-properties value buffer properties))))))
+         (jss-remote-value-replace-with-properties value properties buffer))))))
 
-(defun jss-remote-value-replace-with-properties (value buffer properties)
-  (with-current-buffer buffer
-    (when (jss-remote-value-collapsed value)
-      (jss-replace-with-default-property
-          (jss-remote-value value :test 'eq)
-        (let ((left-column (+ 2 (current-column)))
-              (jss-remote-value-auto-expand-property-limit
-               ;; resetting
-               ;; jss-remote-value-auto-expand-property-limit here
-               ;; prevents use from sending off mny (possibly
-               ;; hundreds) of outaexpand requests when expanding a
-               ;; huge object.
-               ;;
-               ;; the justificiation is that if you're expanding a
-               ;; huge object you can go and find the specific
-               ;; properties you're interested in yourself,
-               ;; autoexpansion is only really useful at the outermost level
-               (if (<= (length properties) jss-remote-value-auto-expand-property-limit)
-                   jss-remote-value-auto-expand-property-limit
-                 nil)))
-          (jss-remote-value-insert-description value)
-          (insert " {\n")
-          (loop for first = t then nil
-                for (prop . more) on properties
-                do (indent-to-column left-column)
-                do (jss-insert-with-highlighted-whitespace (car prop))
-                do (insert ": ")
-                do (jss-insert-remote-value (cdr prop))
-                when more
-                do (insert ",\n"))
-          (insert "}"))))))
+(defun jss-remote-value-replace-with-properties (value properties buffer)
+  (when (buffer-live-p buffer)
+    (with-current-buffer buffer
+      (when (jss-remote-value-collapsed value) 
+        (jss-replace-with-default-property
+            (jss-remote-value value :test 'eq)
+          (let ((left-column (+ 2 (current-column)))
+                (jss-remote-value-auto-expand-property-limit
+                 ;; resetting
+                 ;; jss-remote-value-auto-expand-property-limit here
+                 ;; prevents use from sending off mny (possibly
+                 ;; hundreds) of outaexpand requests when expanding a
+                 ;; huge object.
+                 ;;
+                 ;; the justificiation is that if you're expanding a
+                 ;; huge object you can go and find the specific
+                 ;; properties you're interested in yourself,
+                 ;; autoexpansion is only really useful at the outermost level
+                 (if (<= (length properties) jss-remote-value-auto-expand-property-limit)
+                     jss-remote-value-auto-expand-property-limit
+                   nil)))
+            (jss-remote-value-insert-description value)
+            (insert " {\n")
+            (loop for first = t then nil
+                  for (prop . more) on properties
+                  do (indent-to-column left-column)
+                  do (jss-insert-with-highlighted-whitespace (car prop))
+                  do (insert ": ")
+                  do (jss-insert-remote-value (cdr prop))
+                  when more
+                  do (insert ",\n"))
+            (insert "}")))))))
 
 (defmethod jss-remote-value-expand ((value jss-generic-remote-function))
   (jss-deferred-add-backs
