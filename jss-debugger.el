@@ -27,6 +27,49 @@
 (make-variable-buffer-local
  (defvar jss-debugger-num-frames nil))
 
+;;; TODO: jss-debugger-resume-points (the opposite of breakpoints)
+
+(defcustom jss-ignorable-exception-functions '()
+  "List of functions to call on a new exception, if any of them
+  return true the exception is automatically resumed.")
+
+(pushnew 'jss-is-jquery-exception jss-ignorable-exception-functions)
+(pushnew 'jss-is-3rd-party-exception jss-ignorable-exception-functions)
+
+(setf jss-ignorable-exception-functions '(jss-is-3rd-party-exception))
+
+(defun jss-with-first-stack-frame-url (debugger thunk)
+  (lexical-let ((thunk thunk)
+                (debugger debugger))
+    (let ((frames (jss-debugger-stack-frames debugger)))
+      (when (first frames)
+        (jss-deferred-then
+         (jss-frame-get-source-location (first frames))
+         (lambda (location)
+           (let* ((script (first location)))
+             (when script
+               (let ((url (jss-script-url script)))
+                 (when url
+                   (funcall thunk url debugger)))))))))))
+
+(defun jss-is-jquery-exception (debugger)
+  (jss-with-first-stack-frame-url
+   (lambda (url debugger)
+     (save-match-data
+       (when (string-match ".*/jquery[-.0-9]+\\(min\\)\\.js$" url)
+         t)))))
+
+(defun jss-is-3rd-party-exception (debugger)
+  (jss-with-first-stack-frame-url
+   (lambda (url debugger)
+     (let ((tab-url (jss-tab-url (jss-debugger-tab debugger))))
+       (when tab-url
+         (let* ((script-url (url-generic-parse-url url))
+                (script-host (url-host script-url))
+                (tab-url (url-generic-parse-url tab-url))
+                (tab-host (url-host tab-url)))
+           (not (string= tab-host script-host))))))))
+
 (define-derived-mode jss-debugger-mode jss-super-mode "JSS Debugger"
   ""
   (setf jss-current-debugger-instance jss-debugger
@@ -34,21 +77,39 @@
   (add-hook 'kill-buffer-hook 'jss-debugger-kill nil t)
   (widen)
   (delete-region (point-min) (point-max))
-  (jss-debugger-insert-message (jss-current-debugger))
-  (unless (bolp)
-    (insert "\n"))
-  (insert "Paused on ")
-  (jss-wrap-with-text-properties (list 'jss-debugger-exception t)
-    (jss-insert-remote-value (jss-debugger-exception (jss-current-debugger))))
-  (insert "\n\n")
-  (loop
-   initially (setf jss-debugger-num-frames 0)
-   for frame in (jss-debugger-stack-frames jss-debugger)
-   do (incf jss-debugger-num-frames)
-   do (jss-debugger-insert-frame frame (1- jss-debugger-num-frames)))
-  (goto-char (car (jss-find-property-block 'jss-debugger-exception t)))
-  (setf buffer-read-only t)
-  t)
+
+  (block nil
+    (dolist (func jss-ignorable-exception-functions)
+      (let ((cond (funcall func jss-debugger)))
+        (if (jss-deferred-p cond)
+            (lexical-let ((buffer (current-buffer)))
+              (jss-deferred-then cond
+                                 (lambda (value)
+                                   (when (eql t value)
+                                     (when (buffer-live-p buffer)
+                                       (message "Auto-resuming exception.")
+                                       (jss-debugger-stepper-resume))))))
+          (if cond
+              t
+            (when (buffer-live-p buffer)
+              (message "Auto-resuming exception.")
+              (jss-debugger-stepper-resume))
+            (return t)))))
+    
+    (jss-debugger-insert-message (jss-current-debugger))
+    (unless (bolp) (insert "\n"))
+    (insert "Paused on ")
+    (jss-wrap-with-text-properties (list 'jss-debugger-exception t)
+      (jss-insert-remote-value (jss-debugger-exception (jss-current-debugger))))
+    (insert "\n\n")
+    (loop
+     initially (setf jss-debugger-num-frames 0)
+     for frame in (jss-debugger-stack-frames jss-debugger)
+     do (incf jss-debugger-num-frames)
+     do (jss-debugger-insert-frame frame (1- jss-debugger-num-frames)))
+    (goto-char (car (jss-find-property-block 'jss-debugger-exception t)))
+    (setf buffer-read-only t)
+    t))
 
 (defvar jss-frame-label-map
   (let ((map (make-sparse-keymap)))
