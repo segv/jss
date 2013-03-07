@@ -177,7 +177,8 @@ existing tab objects.")
         (jss-debugger-tab dbg) tab)
   (with-current-buffer (jss-debugger-buffer dbg)
     (jss-debugger-mode* dbg)
-    (switch-to-buffer (current-buffer))))
+    (when (buffer-live-p (jss-debugger-buffer dbg)) 
+      (switch-to-buffer (jss-debugger-buffer dbg)))))
 
 (defgeneric jss-debugger-cleanup (debugger))
 
