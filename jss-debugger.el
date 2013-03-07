@@ -27,40 +27,67 @@
 (make-variable-buffer-local
  (defvar jss-debugger-num-frames nil))
 
+(defvar jss-debugger-resume-points '())
+
+(defun jss-debugger-set-resume-point-here ()
+  (interactive)
+  
+  (block nil
+    (unless (jss-current-debugger)
+      (error "Not currently in a debugger."))
+    (let ((here-frame (first (jss-debugger-stack-frames (jss-current-debugger)))))
+      (unless here-frame
+        (warn "No top frame in current debugger, can't get source.")
+        (return))
+      (jss-deferred-then
+       (jss-frame-get-source-location here-frame)
+       (lambda (location)
+         (block nil
+           (destructuring-bind (script line column)
+               location
+             (unless script
+               (warn "No script location for top frame of debugger.")
+               (return))
+             (let ((url (jss-script-url script)))
+               (unless url
+                 (warn "No url for script of top frame of debugger.")
+                 (return))))))))))
+
 ;;; TODO: jss-debugger-resume-points (the opposite of breakpoints)
 
-(defcustom jss-ignorable-exception-functions '()
+(defcustom jss-debugger-auto-resume-functions '()
   "List of functions to call on a new exception, if any of them
   return true the exception is automatically resumed.")
 
-(pushnew 'jss-is-jquery-exception jss-ignorable-exception-functions)
-(pushnew 'jss-is-3rd-party-exception jss-ignorable-exception-functions)
+;(pushnew 'jss-is-jquery-exception jss-ignorable-exception-functions)
+;(pushnew 'jss-is-3rd-party-exception jss-ignorable-exception-functions)
 
-(setf jss-ignorable-exception-functions '(jss-is-3rd-party-exception))
-
-(defun jss-with-first-stack-frame-url (debugger thunk)
+(defun jss-with-first-stack-frame-url (jss-debugger thunk)
   (lexical-let ((thunk thunk)
-                (debugger debugger))
-    (let ((frames (jss-debugger-stack-frames debugger)))
-      (when (first frames)
-        (jss-deferred-then
-         (jss-frame-get-source-location (first frames))
-         (lambda (location)
-           (let* ((script (first location)))
-             (when script
-               (let ((url (jss-script-url script)))
-                 (when url
-                   (funcall thunk url debugger)))))))))))
+                (jss-debugger jss-debugger))
+    (let ((frames (jss-debugger-stack-frames jss-debugger)))
+      (if (first frames)
+          (jss-deferred-then
+           (jss-frame-get-source-location (first frames))
+           (lambda (location)
+             (let* ((script (first location)))
+               (when script
+                 (let ((url (jss-script-url script)))
+                   (when url
+                     (funcall thunk url jss-debugger)))))))
+        (warn "No first stack frame.")))))
 
-(defun jss-is-jquery-exception (debugger)
+(defun jss-is-jquery-exception (jss-debugger)
   (jss-with-first-stack-frame-url
+   jss-debugger
    (lambda (url debugger)
      (save-match-data
        (when (string-match ".*/jquery[-.0-9]+\\(min\\)\\.js$" url)
          t)))))
 
-(defun jss-is-3rd-party-exception (debugger)
+(defun jss-is-3rd-party-exception (jss-debugger)
   (jss-with-first-stack-frame-url
+   jss-debugger
    (lambda (url debugger)
      (let ((tab-url (jss-tab-url (jss-debugger-tab debugger))))
        (when tab-url
@@ -70,6 +97,9 @@
                 (tab-host (url-host tab-url)))
            (not (string= tab-host script-host))))))))
 
+(setf jss-debugger-auto-resume-functions (list 'jss-is-jquery-exception
+                                               'jss-is-3rd-party-exception))
+
 (define-derived-mode jss-debugger-mode jss-super-mode "JSS Debugger"
   ""
   (setf jss-current-debugger-instance jss-debugger
@@ -78,38 +108,50 @@
   (widen)
   (delete-region (point-min) (point-max))
 
-  (block nil
-    (dolist (func jss-ignorable-exception-functions)
-      (let ((cond (funcall func jss-debugger)))
-        (if (jss-deferred-p cond)
-            (lexical-let ((buffer (current-buffer)))
-              (jss-deferred-then cond
-                                 (lambda (value)
-                                   (when (eql t value)
-                                     (when (buffer-live-p buffer)
-                                       (message "Auto-resuming exception.")
-                                       (jss-debugger-stepper-resume))))))
-          (if cond
-              t
-            (when (buffer-live-p buffer)
-              (message "Auto-resuming exception.")
-              (jss-debugger-stepper-resume))
-            (return t)))))
-    
-    (jss-debugger-insert-message (jss-current-debugger))
-    (unless (bolp) (insert "\n"))
-    (insert "Paused on ")
-    (jss-wrap-with-text-properties (list 'jss-debugger-exception t)
-      (jss-insert-remote-value (jss-debugger-exception (jss-current-debugger))))
-    (insert "\n\n")
-    (loop
-     initially (setf jss-debugger-num-frames 0)
-     for frame in (jss-debugger-stack-frames jss-debugger)
-     do (incf jss-debugger-num-frames)
-     do (jss-debugger-insert-frame frame (1- jss-debugger-num-frames)))
-    (goto-char (car (jss-find-property-block 'jss-debugger-exception t)))
-    (setf buffer-read-only t)
-    t))
+  (jss-debugger-call-auto-resumes (jss-current-debugger))
+  (unless (jss-current-debugger)
+    (error "JSS-CURRENT-DEBUGGER has disappeared."))
+  (jss-debugger-insert-message (jss-current-debugger))
+  (unless (bolp) (insert "\n"))
+  (insert "Paused on ")
+  (jss-wrap-with-text-properties (list 'jss-debugger-exception t)
+    (jss-insert-remote-value (jss-debugger-exception (jss-current-debugger))))
+  (insert "\n\n")
+  (loop
+   initially (setf jss-debugger-num-frames 0)
+   for frame in (jss-debugger-stack-frames jss-debugger)
+   do (incf jss-debugger-num-frames)
+   do (jss-debugger-insert-frame frame (1- jss-debugger-num-frames)))
+  (goto-char (car (jss-find-property-block 'jss-debugger-exception t)))
+  (setf buffer-read-only t)
+  t)
+
+(defun jss-debugger-call-auto-resumes (jss-debugger)
+  ;; nb: some of the async code run to compute 'should ve resume' may
+  ;; change buffers (it shouldn't, but i haven't yet figured out why),
+  ;; so grab the buffer here before running that other code.
+  (lexical-let ((buffer (current-buffer))
+                (jss-debugger jss-debugger))
+    (dolist (func jss-debugger-auto-resume-functions)
+      (lexical-let* ((func func)
+                     (cond (funcall func jss-debugger))
+                     (handler (lambda (value)
+                                (when (eql t value)
+                                  (when (buffer-live-p buffer)
+                                    (with-current-buffer buffer
+                                      (jss-console-warn-message (jss-tab-console (jss-debugger-tab jss-debugger))
+                                                                "%s triggered auto-resume."
+                                                                func)
+                                      (jss-debugger-stepper-resume)))))))      
+        ;; this code may actually trigger the handler immediately, so
+        ;; the current buffer and debugger state may change.
+        (save-excursion
+          (if (jss-deferred-p cond)
+              (jss-deferred-then cond handler)
+            (prog1
+                (funcall handler cond)
+              ;; no need to keep checking other conditions
+              (return))))))))
 
 (defvar jss-frame-label-map
   (let ((map (make-sparse-keymap)))
@@ -134,7 +176,11 @@
 (defmacro define-jss-debugger-step-function (name method)
   `(defun ,name ()
      (interactive)
+     (unless (jss-current-debugger)
+       (error "No debugger in %s." (current-buffer)))
+     
      (,method (jss-current-debugger))
+     
      (when (buffer-live-p (current-buffer))
        (kill-buffer (current-buffer)))))
 
