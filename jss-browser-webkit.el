@@ -7,29 +7,16 @@
 (require 'jss-browser-api)
 (require 'jss-deferred)
 
-;;; Browser connector function
-
-(defun jss-webkit-connect (host port)
-  (interactive (list (read-from-minibuffer "Host: " jss-browser-default-host)
-                     (read-from-minibuffer "Post: " "9222")))
-  (with-current-buffer (get-buffer-create (format "*JSS Webkit @%s:%s*" host port))
-    (switch-to-buffer (current-buffer))
-    (jss-browser-mode* (make-instance 'jss-webkit-browser
-                                      :host host
-                                      :port port))))
-
 ;;; The browser API implementation
 
 (defclass jss-webkit-browser (jss-generic-browser)
-  ((host :initarg :host)
-   (port :initarg :port)
-   (tabs :initform '())))
+  ())
 
 (defmethod jss-browser-description ((browser jss-webkit-browser))
-  (format "Webkit @ %s:%s\nNB: Only displaying tabs that can be debugged." (slot-value browser 'host) (slot-value browser 'port)))
+  (format "Webkit @ %s:%s\nNB: Only displaying tabs that can be debugged." (jss-browser-host browser) (jss-browser-port browser)))
 
 (defmethod jss-webkit-remote-debugging-url ((browser jss-webkit-browser))
-  (format "http://%s:%s/json" (slot-value browser 'host) (slot-value browser 'port)))
+  (format "http://%s:%s/json" (jss-browser-host browser) (jss-browser-port browser)))
 
 (defmethod jss-browser-tabs ((browser jss-webkit-browser))
   (mapcar 'cdr (slot-value browser 'tabs)))
