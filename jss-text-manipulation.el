@@ -176,29 +176,33 @@
       (forward-char 1)))
   (point))
 
-(defun* jss-find-property-block (property-name property-value &key (test 'equal))
-  (save-excursion
-    (goto-char (point-max))
-    (let (block-start block-end)
+(defun* jss-find-property-block (property-name property-value &key (test 'equal) (error t))
+  (block nil
+    (save-excursion
+      (goto-char (point-max))
+      (let (block-start block-end)
 
-      (while (not (funcall test (get-text-property (point) property-name) property-value))
-        (when (= (point) (point-min))
-          (error "Unable to find block with property %s %s to %s in buffer %s." property-name test property-value (current-buffer)))
-        (backward-char 1))
-      (setf block-end (min (1+ (point)) (point-max)))
+        (while (not (funcall test (get-text-property (point) property-name) property-value))
+          (when (= (point) (point-min))
+            (if error
+                (error "Unable to find block with property %s %s to %s in buffer %s." property-name test property-value (current-buffer))
+              (return)))
+          (backward-char 1))
+        (setf block-end (min (1+ (point)) (point-max)))
 
-      (block nil
-        (while (and (funcall test (get-text-property (point) property-name) property-value)
-                    (< (point-min) (point)))
-          (backward-char 1)))
-      (setf block-start (min (1+ (point)) (point-max)))
+        (block nil
+          (while (and (funcall test (get-text-property (point) property-name) property-value)
+                      (< (point-min) (point)))
+            (backward-char 1)))
+        (setf block-start (min (1+ (point)) (point-max)))
 
-      (cons block-start block-end))))
+        (cons block-start block-end)))))
 
-(defun* jss-delete-property-block (property-name property-value &key (test 'equal))
-  (let ((location (jss-find-property-block property-name property-value :test test))
+(defun* jss-delete-property-block (property-name property-value &key (test 'equal) (error t))
+  (let ((location (jss-find-property-block property-name property-value :test test :error error))
         (inhibit-read-only t))
-    (delete-region (car location) (cdr location))))
+    (when location
+      (delete-region (car location) (cdr location)))))
 
 (defun jss-insert-with-properties (property-list format-control &rest format-args)
   (let ((start (point)))

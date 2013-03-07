@@ -177,7 +177,7 @@ Keys
 
 (defmethod jss-console-update-request-message ((console jss-generic-console) io)
   (with-current-buffer (jss-console-buffer console)
-    (jss-delete-property-block 'jss-io-id (jss-io-id io))
+    (jss-delete-property-block 'jss-io-id (jss-io-id io) :error nil)
     (jss-console-insert-io-line console io)))
 
 (defun jss-console-clear-buffer ()
