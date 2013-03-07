@@ -120,8 +120,7 @@
         (with-temp-buffer
           (insert (jss-io-response-data io))
           (goto-char (point-min))
-          (setf parsed (json-read))
-          (message "Parsed %s to %s" (buffer-substring-no-properties (point-min) (point-max)) parsed))
+          (setf parsed (json-read)))
         (insert (pp-to-string parsed))))
      (t
       (insert "Unrecognized content type: " (or  content-type "---") "\n")

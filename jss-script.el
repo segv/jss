@@ -23,7 +23,6 @@
   "Face used to highlight the area around point.")
 
 (defmethod jss-script-mark-offset ((script jss-generic-script) line-number column-number)
-  (message "Going to mark %s:%s of %s" line-number column-number (jss-script-url script))
   (with-current-buffer (jss-script-buffer script)
     (let ((inhibit-read-only t))
       (goto-char (point-min))
