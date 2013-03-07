@@ -280,11 +280,12 @@
 (defmethod jss-debugger-cleanup ((d jss-webkit-debugger))
   (lexical-let ((d d)
                 (object-group (jss-webkit-object-group d)))
-    (jss-deferred-add-errorback
-     (jss-webkit-send-request (jss-debugger-tab d)
-                              (list "Runtime.releaseObjectGroup" `(objectGroup . ,object-group)))
-     (lambda (err)
-       (error "Failed to release object group %s on %s." object-group d)))))
+    (when (websocket-openp (slot-value (jss-debugger-tab d) 'websocket))
+      (jss-deferred-add-errorback
+       (jss-webkit-send-request (jss-debugger-tab d)
+                                (list "Runtime.releaseObjectGroup" `(objectGroup . ,object-group)))
+       (lambda (err)
+         (error "Failed to release object group %s on %s." object-group d))))))
 
 (defclass jss-webkit-stack-frame (jss-generic-stack-frame)
   ((properties :initarg :properties)))
@@ -315,8 +316,7 @@
       (jss-webkit-location-data (jss-debugger-tab (jss-frame-debugger frame))
                                 (cdr (assoc 'location (slot-value frame 'properties))))
     (if script
-        (make-jss-completed-deferred
-         :callback (list script line-number column-number))
+        (make-jss-completed-deferred :callback (list script line-number column-number))
       (unless script-id
         (error "Want to get source-location of frame with no frame-id. %s :(" frame))
       (let ((tab (jss-debugger-tab (jss-frame-debugger frame))))
@@ -603,15 +603,16 @@
 
 (define-jss-webkit-notification-handler "Console.messageAdded" (message)
   (jss-console-format-message console
-                              (ecase (cdr (assoc 'type message))
-                                (debug 'debug)
-                                (log 'log)
-                                (warning 'warn)
-                                (error 'error)
-                                (tip 'error)
-                                ((nil) 'log))
-                              "// %s // %s%s"
-                              (cdr (assoc 'type message))
+                              (let ((type (cdr (assoc 'type message))))
+                                (or (cdr (cl-assoc type
+                                                   '(("warning" . warning)
+                                                     ("debug" . debug)
+                                                     ("log" . log)
+                                                     ("error" . error)
+                                                     ("tip" . error))
+                                                   :test 'string=))
+                                    (error "Unknown message type: %s" type)))
+                              "%s%s"
                               (cdr (assoc 'text message))
                               (let ((url (cdr (assoc 'url message)))
                                     (line (cdr (assoc 'line message))))
