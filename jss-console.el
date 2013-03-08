@@ -39,9 +39,11 @@ Keys
   (add-hook 'kill-buffer-hook 'jss-console-kill nil t)
   ;; assume caller binds jss-console
   (setf jss-current-console-instance jss-console)
+
+  (lexical-let ((tab (jss-current-tab)))
+    (goto-char (jss-prompt-start-of-input
+                (jss-insert-prompt (lambda (text) (jss-evaluate tab text))))))
   
-  (jss-insert-prompt (lambda (text)
-                       (jss-evaluate (jss-console-tab (jss-current-console)) text)))
   (jss-console-ensure-connection)
   t)
 
@@ -86,14 +88,17 @@ Keys
   (interactive)
   (unless (jss-current-console)
     (error "No current console object. Can't open console here."))
-  (unless (jss-tab-connected-p (jss-console-tab (jss-current-console)))
-    (jss-console-debug-message (jss-current-console) "Connecting...")
-    (lexical-let ((buf (current-buffer)))
-      (jss-deferred-add-backs
-        (jss-tab-connect (jss-console-tab (jss-current-console)))
-        (lambda (tab)
-          (with-current-buffer buf
-            (jss-console-debug-message (jss-current-console) "Connected.")))))))
+  (if (jss-tab-connected-p (jss-console-tab (jss-current-console)))
+      (make-jss-completed-deferred (jss-console-tab (jss-current-console)))
+    (unless (jss-tab-connected-p (jss-console-tab (jss-current-console)))
+      (jss-console-debug-message (jss-current-console) "Connecting...")
+      (lexical-let ((buf (current-buffer)))
+        (jss-deferred-then
+         (jss-tab-connect (jss-console-tab (jss-current-console)))
+         (lambda (tab)
+           (with-current-buffer buf
+             (jss-console-debug-message (jss-current-console) "Connected."))
+           tab))))))
 
 (defun jss-console-kill ()
   (interactive)

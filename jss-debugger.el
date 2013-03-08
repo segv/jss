@@ -89,16 +89,17 @@
 (defun jss-is-3rd-party-exception (jss-debugger)
   (jss-with-first-stack-frame-url
    jss-debugger
-   (lambda (url debugger)
+   (lambda (script-url debugger)
      (let ((tab-url (jss-tab-url (jss-debugger-tab debugger))))
-       (when tab-url
-         (let* ((script-url (url-generic-parse-url url))
-                (script-host (url-host script-url))
-                (tab-url (url-generic-parse-url tab-url))
-                (tab-host (url-host tab-url)))
-           (if (string= tab-host script-host)
+       (when (and script-url tab-url
+                  (not (string= "" script-url))
+                  (not (string= "" tab-url)))
+         (let ((script-parsed (url-generic-parse-url script-url))
+               (tab-parsed (url-generic-parse-url tab-url)))
+           (if (string= (url-host tab-parsed)
+                        (url-host script-parsed))
                nil
-             (format "%s is not %s" script-host tab-host))))))))
+             (format "%s is external to %s" script-url tab-url))))))))
 
 (setf jss-debugger-auto-resume-functions (list 'jss-is-jquery-exception
                                                'jss-is-3rd-party-exception))
@@ -125,8 +126,7 @@
          for frame in (jss-debugger-stack-frames jss-debugger)
          do (incf jss-debugger-num-frames)
          do (jss-debugger-insert-frame frame (1- jss-debugger-num-frames)))
-        (goto-char (car (jss-find-property-block 'jss-debugger-exception t)))
-        (setf buffer-read-only t)))
+        (goto-char (car (jss-find-property-block 'jss-debugger-exception t)))))
     t))
 
 (defun jss-debugger-call-auto-resumes (jss-debugger)
@@ -171,20 +171,28 @@ of the debugger after this function returns."
     (set-keymap-parent map jss-debugger-mode-map)
     (define-key map (kbd "c") 'jss-debugger-frame-goto-prompt)))
 
+(defvar jss-debugger-prompt-map (let ((map (make-sparse-keymap)))
+                                  (define-key map "C-c C-c" 'jss-frame-previous)
+                                  map))
+
 (defmethod jss-debugger-insert-frame ((frame jss-generic-stack-frame) count)
-  (jss-wrap-with-text-properties (list 'jss-frame frame 'jss-frame-count count)
-    (jss-wrap-with-text-properties (list 'jss-frame-label t
-                                         'keymap jss-frame-label-map)
-      (insert (format "Frame %d: " count))
-      (jss-insert-with-highlighted-whitespace (jss-frame-function-name frame))
-      (insert "\n"))
-    (jss-wrap-with-text-properties (list 'invisible t)
-      (when (jss-frame-source-hint frame)
-        (jss-wrap-with-text-properties (list 'jss-frame-source-position t)
-          (insert "Source location: ")
-          (jss-insert-with-highlighted-whitespace (jss-frame-source-hint frame))
-          (insert "\n")))
-      (jss-section-marker))))
+  (lexical-let ((frame frame))
+    (jss-wrap-with-text-properties (list 'jss-frame frame 'jss-frame-count count)
+      (jss-wrap-with-text-properties (list 'jss-frame-label t
+                                           'keymap jss-frame-label-map)
+        (insert (format "Frame %d: " count))
+        (jss-insert-with-highlighted-whitespace (jss-frame-function-name frame))
+        (insert "\n"))
+      (jss-wrap-with-text-properties (list 'invisible t)
+        (when (jss-frame-source-hint frame)
+          (jss-wrap-with-text-properties (list 'jss-frame-source-position t)
+            (insert "Source location: ")
+            (jss-insert-with-highlighted-whitespace (jss-frame-source-hint frame))
+            (insert "\n")))
+        (jss-insert-prompt (lambda (text)
+                             (jss-evaluate frame text))
+                           :local-map jss-debugger-prompt-map)
+        (jss-section-marker)))))
 
 (defmacro define-jss-debugger-step-function (name method)
   `(defun ,name ()
