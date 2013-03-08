@@ -40,27 +40,14 @@
       (forward-line line-number)
       (ignore-errors
         (forward-char column-number))
-      (let ((marker-point (point))
-            (inhibit-read-only t))
-        (let (start end)
-          (loop
-           repeat 25
-           when (not (or (bolp) (bobp))) do (backward-char 1))
-          (setf start (point))
-          (goto-char marker-point)
-          (loop
-           repeat 25
-           when (not (or (eolp) (eobp))) do (forward-char 1))
-          (setf end (point))
-          (let ((overlay (make-overlay start (min (point-max) (1+ marker-point))
-                                       (current-buffer))))
-            (overlay-put overlay 'face 'jss-script-line-marker-face))
-          (let ((overlay (make-overlay (min (point-max) (1+ marker-point)) end
-                                       (current-buffer))))
-            (overlay-put overlay 'face 'jss-script-line-marker-face)))
-        (goto-char marker-point)))
-    (display-buffer (current-buffer))
-    (let ((recenter-redislay t))
-      (recenter nil))))
+      (let* ((inhibit-read-only t)
+             (end-of-line-point (save-excursion (end-of-line) (point)))
+             (overlay (make-overlay (point) (min end-of-line-point (+ (point) 30))
+                                    (current-buffer))))
+        (overlay-put overlay 'face 'jss-script-line-marker-face)
+        (display-buffer (current-buffer))
+        (set-window-point (get-buffer-window (current-buffer)) (point))
+        (with-selected-window (get-buffer-window (current-buffer))
+          (recenter))))))
 
 (provide 'jss-script)
