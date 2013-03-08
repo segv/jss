@@ -179,7 +179,7 @@
   (jss-log-event (list :websocket
                        (jss-webkit-tab-debugger-url tab)
                        :on-message
-                       websocket
+                       ;websocket
                        frame))
   (let* ((message (with-temp-buffer
                     (insert (websocket-frame-payload frame))
