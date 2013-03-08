@@ -15,10 +15,8 @@
 (define-key jss-prompt-map (kbd "C-a") 'jss-prompt-beginning-of-line)
 
 (define-key jss-prompt-map (kbd "M-p") 'jss-prompt-insert-previous-input)
-(define-key jss-prompt-map (kbd "<up>") 'jss-prompt-insert-previous-input)
 
 (define-key jss-prompt-map (kbd "M-n") 'jss-prompt-insert-next-input)
-(define-key jss-prompt-map (kbd "<down>") 'jss-prompt-insert-next-input)
 
 (make-variable-buffer-local
  (defvar jss-prompt-input-history '()))
