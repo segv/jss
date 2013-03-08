@@ -21,7 +21,7 @@
       (jss-deferred-then
        (jss-script-get-body script)
        (lambda (body)
-         (setf (jss-script-buffer script) (generate-new-buffer (format "*JSS Script %s*" (jss-script-id script)))
+         (setf (jss-script-buffer script) (generate-new-buffer (format "*JSS Script %s (%s)*" (jss-script-url script) (jss-script-id script)))
                (jss-script-body script) body)
          (with-current-buffer (jss-script-buffer script)
            (jss-script-mode* script)
