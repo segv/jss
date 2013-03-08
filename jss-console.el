@@ -30,6 +30,8 @@ Keys
   RET - evaluate prompt or follow link
   C-c C-o - clear console
 
+  C-c M-n - enable/disable network monitor (defaults to enable, use prefix arg to disable)
+
   C-c C-p - previous input
   C-c C-n - next input
 
@@ -47,6 +49,8 @@ Keys
 (define-key jss-console-mode-map (kbd "C-c C-o") 'jss-console-clear-buffer)
 (define-key jss-console-mode-map (kbd "C-c C-r") 'jss-console-reload-page)
 (define-key jss-console-mode-map (kbd "C-c C-i") 'jss-expand-nearest-remote-value)
+
+(define-key jss-console-mode-map (kbd "C-c M-n") 'jss-toggle-network-monitor)
 
 (defun jss-console-mode* (console)
   (let ((jss-console console))
@@ -231,5 +235,13 @@ Keys
                               nil t)))
   (jss-tab-set-debugger-sensitivity (jss-current-tab)
                                     (cdr (assoc level jss-set-debugger-sensitivity/levels))))
+
+(defun jss-toggle-network-monitor (prefix)
+  (interactive "P")
+  (if (jss-current-tab)
+      (if prefix
+          (jss-tab-disable-network-monitor (jss-current-tab))
+        (jss-tab-enable-network-monitor (jss-current-tab)))
+    (error "No current tab.")))
 
 (provide 'jss-console)

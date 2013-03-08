@@ -56,6 +56,10 @@ existing tab objects.")
 
 (defgeneric jss-tab-object-properties (tab object-id))
 
+(defgeneric jss-tab-disable-network-monitor (tab))
+
+(defgeneric jss-tab-enable-network-monitor (tab))
+
 (defclass jss-generic-script ()
   ((tab :initarg :tab :accessor jss-script-tab)
    (buffer :initform nil :accessor jss-script-buffer)

@@ -141,7 +141,7 @@
               (lambda (response)
                 (jss-deferred-add-backs
                  (jss-deferred-wait-on-all
-                  (jss-webkit-tab-enable tab "Network")
+                  (jss-tab-enable-network-monitor tab)
                   (jss-webkit-tab-enable tab "Debugger")
                   (jss-webkit-tab-enable tab "Page"))
                  (lambda (v)
@@ -163,6 +163,23 @@
                                       (list "Debugger.setPauseOnExceptions"
                                             (cons 'state new-state))
                                       "Failed to setPauseOnExceptions(%s,%s)" sensitivity new-state)))
+
+(defun jss-webkit-enable-disable-monitor (tab domain component-name)
+  (lexical-let* ((tab tab)
+                 (domain domain)
+                 (component-name component-name))
+    (jss-deferred-add-backs
+     (jss-webkit-send-request tab (list (format "%s.%s" domain component-name)))
+     (lambda (response)
+       (jss-console-debug-message console "%s %sd." domain component-name))
+     (lambda (response)
+       (jss-console-debug-message console "Could not enable %s: %s" domain response)))))
+
+(defmethod jss-tab-disable-network-monitor ((tab jss-webkit-tab))
+  (jss-webkit-enable-disable-monitor tab "Network" "disable"))
+
+(defmethod jss-tab-enable-network-monitor ((tab jss-webkit-tab))
+  (jss-webkit-enable-disable-monitor tab "Network" "enable"))
 
 (defmethod jss-webkit-tab-enable ((tab jss-webkit-tab) domain)
   (lexical-let* ((tab tab)
