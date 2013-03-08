@@ -601,25 +601,20 @@
       (websocket-close ws))))
 
 (define-jss-webkit-notification-handler "Console.messageAdded" (message)
-  (jss-console-format-message console
-                              (let ((type (cdr (assoc 'type message))))
-                                (or (cdr (cl-assoc type
-                                                   '(("warning" . warning)
-                                                     ("debug" . debug)
-                                                     ("log" . log)
-                                                     ("error" . error)
-                                                     ("tip" . error))
-                                                   :test 'string=))
-                                    (error "Unknown message type: %s" type)))
-                              "%s%s"
-                              (cdr (assoc 'text message))
-                              (let ((url (cdr (assoc 'url message)))
-                                    (line (cdr (assoc 'line message))))
-                                (if url
-                                    (if line
-                                        (format " %s:%s" url line)
-                                      (format " %s" url))
-                                  ""))))
+  (let* ((type (cdr (assoc 'type message)))
+         (level (or (cdr (cl-assoc type
+                                   '(("warning" . warning)
+                                     ("debug" . debug)
+                                     ("log" . log)
+                                     ("error" . error)
+                                     ("tip" . error))
+                                   :test 'string=))
+                    (error "Unknown message type: %s" type))))
+    (jss-console-insert-message-objects console
+                                        level
+                                        (loop
+                                         for param across (cdr (assoc 'parameters message))
+                                         collect (make-jss-webkit-remote-object param)))))
 
 (define-jss-webkit-notification-handler "Console.messagesCleared" ()
   t)

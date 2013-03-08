@@ -149,6 +149,19 @@ Keys
             (setf properties (list* 'read-only t properties)))
           (add-text-properties start (point) properties))))))
 
+(defmethod jss-console-insert-message-objects ((console jss-generic-console) level objects)
+  (save-excursion
+    (with-current-buffer (jss-console-buffer console)
+      (let ((inhibit-read-only t))
+        (jss-before-last-prompt)
+        (jss-wrap-with-text-properties (list 'face (jss-console-level-face level)
+                                             'read-only t)
+          (insert (jss-console-level-label level))
+          (dolist (o objects)
+            (jss-insert-remote-value o)))
+        (unless (bolp)
+          (insert "\n"))))))
+
 (defmethod jss-console-insert-io-line ((console jss-generic-console) io)
   (with-current-buffer (jss-console-buffer console)
     (save-excursion
