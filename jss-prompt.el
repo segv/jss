@@ -74,8 +74,8 @@
 
 (defun jss-before-last-prompt ()
   (goto-char (point-max))
-  (jss-end-of-previous-property-block 'jss-prompt)
-  (jss-start-of-current-property-block 'jss-prompt))
+  (jss-end-of-previous-property-block 'jss-prompt-marker)
+  (jss-start-of-current-property-block 'jss-prompt-marker))
 
 (defun jss-prompt-next-input ()
   (jss-start-of-next-property-block 'jss-prompt)
