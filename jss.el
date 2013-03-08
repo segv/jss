@@ -15,6 +15,7 @@
 (require 'jss-browser-firefox)
 (require 'jss-browser)
 (require 'jss-console)
+(require 'jss-io-pretty-printers)
 (require 'jss-io)
 (require 'jss-debugger)
 

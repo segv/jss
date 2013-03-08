@@ -97,33 +97,12 @@
         (jss-io-mode)))
     (display-buffer (jss-io-buffer io))))
 
-(defun jss-io-fontify-data (data mode)
-  (let (out (buffer (generate-new-buffer " *jss-fontification*")))
-    (with-current-buffer buffer
-      (insert data)
-      (funcall mode)
-      (indent-region (point-min) (point-max))
-      (setf out (buffer-substring (point-min) (point-max))))
-    out))
-
 (defmethod jss-io-insert-response-data ((io jss-generic-io))
-  (let ((content-type (jss-io-response-content-type io)))
-    (cond
-     ((string= "text/html" content-type)
-      (insert (jss-io-fontify-data (jss-io-response-data io) 'nxml-mode)))
-     ((string= "text/css" content-type)
-      (insert (jss-io-fontify-data (jss-io-response-data io) 'css-mode)))
-     ((cl-member content-type '("application/javascript" "text/javascript") :test 'string=)
-      (insert (jss-io-fontify-data (jss-io-response-data io) 'js2-mode)))
-     ((cl-member content-type '("application/json") :test 'string=)
-      (let (parsed)
-        (with-temp-buffer
-          (insert (jss-io-response-data io))
-          (goto-char (point-min))
-          (setf parsed (json-read)))
-        (insert (pp-to-string parsed))))
-     (t
+  (let* ((content-type (jss-io-response-content-type io))
+         (cleaner (gethash content-type jss-io-cleaners)))
+    (if cleaner
+        (insert (funcall cleaner (jss-io-response-data io)))
       (insert "Unrecognized content type: " (or  content-type "---") "\n")
-      (insert (jss-io-response-data io))))))
+      (insert (jss-io-response-data io)))))
 
 (provide 'jss-io)
