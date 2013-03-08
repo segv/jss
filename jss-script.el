@@ -1,6 +1,16 @@
-(define-derived-mode jss-script-mode jss-super-mode "JSS Script"
-  ""
-  (setf buffer-read-only t))
+(defun jss-script-mode* (script)
+  (let ((jss-script script))
+    (add-hook 'kill-buffer-hook 'jss-script-kill nil t)
+    (let ((inhibit-read-only t))
+      (erase-buffer)
+      (insert (jss-script-body jss-script)))
+    (js2-mode)
+    (setf buffer-read-only t
+          jss-current-script jss-script)))
+
+(defun jss-script-kill ()
+  (interactive)
+  (setf (jss-script-buffer jss-current-script) nil))
 
 (defmethod jss-script-display-at-position ((script jss-generic-script) line-number column-number)
   (if (jss-script-buffer script)
@@ -11,13 +21,11 @@
       (jss-deferred-then
        (jss-script-get-body script)
        (lambda (body)
-         (setf (jss-script-buffer script) (generate-new-buffer (format "*JSS Script %s*" (jss-script-id script))))
+         (setf (jss-script-buffer script) (generate-new-buffer (format "*JSS Script %s*" (jss-script-id script)))
+               (jss-script-body script) body)
          (with-current-buffer (jss-script-buffer script)
-           (jss-script-mode)
-           (let ((inhibit-read-only t))
-             (delete-region (point-min) (point-max))
-             (insert body)))
-         (jss-script-mark-offset script line-number column-number))))))
+           (jss-script-mode* script)
+           (jss-script-mark-offset script line-number column-number)))))))
 
 (defface jss-script-line-marker-face '((t :inherit highlight))
   "Face used to highlight the area around point.")

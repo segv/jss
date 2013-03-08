@@ -58,9 +58,16 @@ existing tab objects.")
 
 (defclass jss-generic-script ()
   ((tab :initarg :tab :accessor jss-script-tab)
-   (buffer :initform nil :accessor jss-script-buffer)))
+   (buffer :initform nil :accessor jss-script-buffer)
+   (body :initform nil :accessor jss-script-body)))
 
 (defgeneric jss-script-id (script))
+
+(defgeneric jss-script-url (script))
+
+(defgeneric jss-script-get-body (script))
+
+(defgeneric jss-evaluate (context text))
 
 (defgeneric jss-tab-get-script (tab script-id))
 
@@ -74,14 +81,6 @@ existing tab objects.")
         (gethash script-id (jss-tab-scripts tab)) script))
 
 (defsetf jss-tab-get-script jss-tab-set-script)
-
-(defgeneric jss-script-url (script))
-
-(defgeneric jss-script-get-body (script))
-
-(defgeneric jss-script-buffer (script))
-
-(defgeneric jss-evaluate (context text))
 
 (defclass jss-generic-console ()
   ((tab :initarg :tab
