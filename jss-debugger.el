@@ -82,7 +82,6 @@
    jss-debugger
    (lambda (url debugger)
      (save-match-data
-       (message "Testing for jquery-ness of %s." url)
        (if (string-match ".*/jquery[-.0-9]*\\(\\.min\\)?\\.js$" url)
            (format "%s looks like a jquery library." url)
          nil)))))
