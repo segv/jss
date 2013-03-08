@@ -157,10 +157,6 @@ existing tab objects.")
   (remhash (jss-io-id io) (jss-tab-ios tab))
   io)
 
-(defmethod jss-io-buffer-name ((io jss-generic-io))
-  (or (slot-value io 'buffer)
-      (setf (slot-value io 'buffer) (get-buffer-create (format "*JSS IO %s*" (jss-io-id io))))))
-
 (defclass jss-generic-debugger ()
   ((buffer :accessor jss-debugger-buffer)
    (tab    :accessor jss-debugger-tab :initarg :tab)))

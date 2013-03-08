@@ -7,10 +7,9 @@
 
 (define-derived-mode jss-io-mode jss-super-mode "JSS IO"
   ""
-  (add-hook 'kill-buffer-hook 'jss-io-kill-buffer nil t)
   (setf jss-current-io-object jss-io
         (jss-io-buffer jss-io) (current-buffer))
-      
+
   (insert "Request: ")
   (jss-insert-with-highlighted-whitespace (jss-io-request-method jss-io))
   (insert " ")
@@ -62,10 +61,6 @@
 
 (define-key jss-io-mode-map (kbd "q") (lambda () (interactive) (kill-buffer (current-buffer))))
 
-(defun jss-io-kill-buffer ()
-  (interactive)
-  (jss-tab-unregister-io (jss-io-tab (jss-current-io)) (jss-current-io)))
-
 (defun* jss-io-insert-header-table (header-alist &key indent)
   (when header-alist
     (let* ((headers (mapcar (lambda (h)
@@ -88,11 +83,15 @@
 
 (defun jss-console-switch-to-io-inspector (io)
   (interactive (list (jss-tab-get-io (jss-current-tab) (get-text-property (point) 'jss-io-id))))
-  (unless io (error "io is nil. not good."))
-  (if (jss-io-buffer io)
+  (unless io
+    (error "io is nil. not good."))
+
+  (if (and (jss-io-buffer io)
+           (buffer-live-p (jss-io-buffer io)))
       (display-buffer (jss-io-buffer io))
-    
-    (with-current-buffer (get-buffer-create (jss-io-buffer-name io))
+    (setf (jss-io-buffer io)
+          (get-buffer-create (generate-new-buffer-name (format "*JSS IO %s*" (jss-io-id io)))))
+    (with-current-buffer (jss-io-buffer io)
       (let ((jss-io io))
         (jss-io-mode)))
     (display-buffer (jss-io-buffer io))))
