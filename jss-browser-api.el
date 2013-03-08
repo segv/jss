@@ -228,6 +228,9 @@ existing tab objects.")
 (defmethod jss-remote-value-description ((string jss-generic-remote-string))
   (prin1-to-string (jss-remote-primitive-value string)))
 
+(defmethod jss-remote-value-insert-description ((o jss-generic-remote-string))
+  (insert (jss-remote-value-description o)))
+
 (defclass jss-generic-remote-number (jss-generic-remote-primitive) ())
 (defmethod jss-remote-value-description ((number jss-generic-remote-number))
   (let ((value (jss-remote-primitive-value number)))
