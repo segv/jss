@@ -4,8 +4,8 @@
   "Functionality common to all JSS modes."
   t)
 
-(define-key jss-super-mode-map (kbd "TAB") 'jss-next-button)
-(define-key jss-super-mode-map (kbd "<backtab>") 'jss-previous-button)
+(define-key jss-super-mode-map (kbd "<tab>") 'jss-next-button)
+(define-key jss-super-mode-map (kbd "<S-tab>") 'jss-previous-button)
 
 (require 'jss-text-manipulation)
 (require 'jss-browser-api)

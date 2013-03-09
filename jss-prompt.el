@@ -13,10 +13,9 @@
 
 (define-key jss-prompt-map (kbd "RET") 'jss-prompt-eval-or-newline)
 (define-key jss-prompt-map (kbd "C-a") 'jss-prompt-beginning-of-line)
-
 (define-key jss-prompt-map (kbd "M-p") 'jss-prompt-insert-previous-input)
-
 (define-key jss-prompt-map (kbd "M-n") 'jss-prompt-insert-next-input)
+(define-key jss-prompt-map (kbd "C-c C-i") 'jss-expand-nearest-remote-value)
 
 (make-variable-buffer-local
  (defvar jss-prompt-input-history '()))
@@ -42,6 +41,18 @@
    (keymap)))
 
 (defun* jss-insert-prompt (submit-function &key local-map keymap previous-prompt)
+  "Insert a prompt which can be used to send javascript to the browser and view the resulting value.
+
+The prompt is just a line of editable text (even if the rest of
+the buffer is read-only). Hitting enter will check the code for
+syntax errors and, if it's valid js according to js2-parse, send
+it to the server (use a prefix arg to RET to avoid this syntax
+check).
+
+The return value is inserted after the propmt using `jss-insert-remote-value`.
+
+Prompts also have history, using M-p and M-n (M-r not yet
+implemented)."
   (unless (or (bobp) (= (point) (line-beginning-position)))
     (insert "\n"))
   (let ((prompt (make-instance 'jss-prompt

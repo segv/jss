@@ -1,5 +1,45 @@
 (require 'jss-browser-api)
 
+(define-derived-mode jss-debugger-mode jss-super-mode "JSS Debugger"
+  "The jss-debugger serves to signal exceptions, provide any
+neccessary context and give the tools required to debug the
+current state of the tab.
+
+The first item in a debugger buffer is always the exception
+object itself, represented as a normal jss-remote-vaule.
+
+The debugger buffer then the current frames on the call stack and
+provides, for each frame, a link to the frame's source code and a
+prompt running in the frame's execution context.
+
+Most of the debugger keybindings are on single letter keys and
+are _not_ available when point is in a frame's prompt. Inside the
+prompt for a specific frame use jss-frame-previous (bound to C-c
+C-c in the prompt's map) to jump out of the prompt and back to
+the current frame's top line."
+  (setf jss-current-debugger-instance jss-debugger
+        jss-current-tab-instance (jss-debugger-tab jss-debugger))
+  (add-hook 'kill-buffer-hook 'jss-debugger-kill nil t)
+  (widen)
+  (delete-region (point-min) (point-max))
+  (let ((buffer (current-buffer)))
+    (jss-debugger-call-auto-resumes (jss-current-debugger))
+    (when (buffer-live-p buffer)
+      (with-current-buffer buffer
+        (jss-wrap-with-text-properties (list 'jss-debugger-exception t)
+          (jss-debugger-insert-message (jss-current-debugger))
+          (unless (bolp) (insert "\n"))
+          (insert "Paused on ")
+          (jss-insert-remote-value (jss-debugger-exception (jss-current-debugger))))
+        (insert "\n\n")
+        (loop
+         initially (setf jss-debugger-num-frames 0)
+         for frame in (jss-debugger-stack-frames jss-debugger)
+         do (incf jss-debugger-num-frames)
+         do (jss-debugger-insert-frame frame (1- jss-debugger-num-frames)))
+        (goto-char (car (jss-find-property-block 'jss-debugger-exception t)))))
+    t))
+
 (make-variable-buffer-local
  (defvar jss-current-debugger-instance))
 
@@ -104,31 +144,6 @@
 (setf jss-debugger-auto-resume-functions (list 'jss-is-jquery-exception
                                                'jss-is-3rd-party-exception))
 
-(define-derived-mode jss-debugger-mode jss-super-mode "JSS Debugger"
-  ""
-  (setf jss-current-debugger-instance jss-debugger
-        jss-current-tab-instance (jss-debugger-tab jss-debugger))
-  (add-hook 'kill-buffer-hook 'jss-debugger-kill nil t)
-  (widen)
-  (delete-region (point-min) (point-max))
-  (let ((buffer (current-buffer)))
-    (jss-debugger-call-auto-resumes (jss-current-debugger))
-    (when (buffer-live-p buffer)
-      (with-current-buffer buffer
-        (jss-debugger-insert-message (jss-current-debugger))
-        (unless (bolp) (insert "\n"))
-        (insert "Paused on ")
-        (jss-wrap-with-text-properties (list 'jss-debugger-exception t)
-          (jss-insert-remote-value (jss-debugger-exception (jss-current-debugger))))
-        (insert "\n\n")
-        (loop
-         initially (setf jss-debugger-num-frames 0)
-         for frame in (jss-debugger-stack-frames jss-debugger)
-         do (incf jss-debugger-num-frames)
-         do (jss-debugger-insert-frame frame (1- jss-debugger-num-frames)))
-        (goto-char (car (jss-find-property-block 'jss-debugger-exception t)))))
-    t))
-
 (defun jss-debugger-call-auto-resumes (jss-debugger)
   "Call the auto-resume functions to see if we should just abort this debugger.
 
@@ -171,9 +186,10 @@ of the debugger after this function returns."
     (set-keymap-parent map jss-debugger-mode-map)
     (define-key map (kbd "c") 'jss-debugger-frame-goto-prompt)))
 
-(defvar jss-debugger-prompt-map (let ((map (make-sparse-keymap)))
-                                  (define-key map "C-c C-c" 'jss-frame-previous)
-                                  map))
+(defvar jss-debugger-prompt-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "C-c C-c" 'jss-frame-previous)
+    map))
 
 (defmethod jss-debugger-insert-frame ((frame jss-generic-stack-frame) count)
   (lexical-let ((frame frame))

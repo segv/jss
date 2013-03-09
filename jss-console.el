@@ -2,40 +2,42 @@
 (require 'eieio)
 (require 'jss-prompt)
 
-(defface jss-console-debug-message '((t :inherit font-lock-comment-face))
-  "Face for JSS debug messages")
-(defface jss-console-log-message   '((t :inherit font-lock-doc-face))
-  "Face for JSS log messages")
-(defface jss-console-warn-message  '((t :inherit font-lock-other-emphasized-face))
-  "Face for JSS warning messages")
-(defface jss-console-error-message '((t :inherit font-lock-warning-face))
-  "Face for JSS error messages")
-
 (define-derived-mode jss-console-mode jss-super-mode "JSS Console"
-  "Major mode for interactiing with a remote web browser tab.
+  "A jss console buffer serves two purposes:
 
-A console buffer consists of a list of messages, representing
-notifications from the browser, and a prompt (which may grow to
-be a list of inputs and vaules).
+1. It collects asynchronous various events (console logs, network
+traffice, errors, etc.) from the browser
 
-Messages from the server are of the form \"// status // message\"
+2. It displays a console where we can run code inside the current
+state of the browser. (a jss-prompt).
 
-The prompt is always a simple \"> \"
+Every event on the server generates one line (more if it's a
+multiline console message) in the buffer:
 
-I/O requests are logged to the console and clickable.
+  // <level> // <message>
 
-Keys
+Where <message> is a string of text or buttons and <level> is one
+of:
 
-  C-c C-r - reload tab's page
-  RET - evaluate prompt or follow link
-  C-c C-o - clear console
+  * \"note\" - used for logging/debugging/status messages from jss itself
+  * \"log\" - used for log level console messages and network traffice
+  * \"warning\" - used for warning level console messages
+  * \"ERROR\" - used for error level console messages and uncaught exceptions
 
-  C-c M-n - enable/disable network monitor (defaults to enable, use prefix arg to disable)
+For IO events, request sent, response received, etc., we display
+the url (with query parameters) as a button which will open up
+the corresponding *JSS IO* buffer.
 
-  C-c C-p - previous input
-  C-c C-n - next input
+The currently active prompt, which is always at the bottom of the
+buffer, is a highlighted line which starts with \"> \". Unlike
+the prompts in the debugger buffers all the normal console
+keybindings are available. One consequence of this is that the
+<tab> key jumps to the next button in the buffer and does not
+indent the current line of code.
 
-"
+jss-console-mode also binds jss-expand-nearest-remote-value
+globally (and not just in prompt fields), which makes it easy to
+expand objects while moving around the buffer."
   (add-hook 'kill-buffer-hook 'jss-console-kill nil t)
   ;; assume caller binds jss-console
   (setf jss-current-console-instance jss-console)
@@ -50,9 +52,17 @@ Keys
 (define-key jss-console-mode-map (kbd "C-c C-r") 'jss-console-ensure-connection)
 (define-key jss-console-mode-map (kbd "C-c C-o") 'jss-console-clear-buffer)
 (define-key jss-console-mode-map (kbd "C-c C-r") 'jss-console-reload-page)
+(define-key jss-console-mode-map (kbd "C-c C-n") 'jss-toggle-network-monitor)
 (define-key jss-console-mode-map (kbd "C-c C-i") 'jss-expand-nearest-remote-value)
 
-(define-key jss-console-mode-map (kbd "C-c M-n") 'jss-toggle-network-monitor)
+(defface jss-console-debug-message '((t :inherit font-lock-comment-face))
+  "Face for JSS debug messages")
+(defface jss-console-log-message   '((t :inherit font-lock-doc-face))
+  "Face for JSS log messages")
+(defface jss-console-warn-message  '((t :inherit font-lock-other-emphasized-face))
+  "Face for JSS warning messages")
+(defface jss-console-error-message '((t :inherit font-lock-warning-face))
+  "Face for JSS error messages")
 
 (defun jss-console-mode* (console)
   (let ((jss-console console))
@@ -89,7 +99,7 @@ Keys
   (unless (jss-current-console)
     (error "No current console object. Can't open console here."))
   (if (jss-tab-connected-p (jss-console-tab (jss-current-console)))
-      (make-jss-completed-deferred (jss-console-tab (jss-current-console)))
+      (make-jss-completed-deferred :callback (jss-console-tab (jss-current-console)))
     (unless (jss-tab-connected-p (jss-console-tab (jss-current-console)))
       (jss-console-debug-message (jss-current-console) "Connecting...")
       (lexical-let ((buf (current-buffer)))
@@ -102,8 +112,10 @@ Keys
 
 (defun jss-console-kill ()
   (interactive)
-  (jss-console-close (jss-current-console))
-  (jss-current-console))
+  (let ((browser (jss-tab-browser (jss-console-tab (jss-current-console)))))
+    (jss-console-close (jss-current-console))
+    ;; do this after closing the console so the refresh doesn't see our current connection
+    (jss-browser-refresh browser)))
 
 (defmethod jss-console-debug-message ((console jss-generic-console) &rest format-message-args)
   (apply 'jss-console-format-message console 'debug format-message-args))

@@ -195,3 +195,10 @@ found, exec them with the required args.
 
 On firefox we'd still have the manual 'run script' step, not sure how
 to work around this.
+*** TODO make most of the debugger buffer read-only
+
+currently non of it read only text and most of the momevment commands
+are single letters, but if you type the wrong command you'll end up
+just inserting that char and a) it's looks really ugly and b) it can
+break some of the 'find this block' code.
+*** TODO visual indiction for sparse arrays.

@@ -6,7 +6,8 @@
 (defclass jss-generic-browser ()
   ((host :initarg :host :accessor jss-browser-host)
    (port :initarg :port :accessor jss-browser-port)
-   (tabs :initform '())))
+   (tabs :initform '())
+   (buffer :accessor jss-browser-buffer)))
 
 (defgeneric jss-browser-get-tabs (browser)
   "Refreshes the list of availale tabs.

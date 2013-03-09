@@ -3,11 +3,26 @@
 (require 'jss-browser-api)
 
 (define-derived-mode jss-browser-mode jss-super-mode "JSS Browser"
-  "Major mode for listing information about a browser, mainly a list of available tabs.
+  "This is mode used by buffers created with jss-connect. It serves,
+mainly, to list the tabs in the browser that can be debugged.
 
-After connecting to a specific browser instance, via
-`jss-connect`, this mode presents a list of open tabs and the
-ability to attach a console to a particular tab."
+The first specifies the backend, `webkit` or `firefox` used to
+communicate with the browser and the host and port we're
+currently connected to (or trying to connect to).
+
+For each tab we list the currently visited url and provide a
+button, \"[open console]\" which jumps to the corresponding tab's
+console buffer.
+
+The browser mode also displays a list of links to the jss
+doucementation.
+
+Note: While the browser buffer attempts to keep itself in sync
+with the state of the browser (by refreshing when opening and
+closing jss consoles), it is possible for changes to be made in
+the browser which aren't communicated to jss. For this reason
+manually running jss-browser-mode-refresh (usually bound to
+\"g\") will required from time to time."
   ;; bound by caller
   (setf jss-current-browser-instance jss-browser)
   (jss-browser-mode-refresh))
@@ -29,13 +44,19 @@ ability to attach a console to a particular tab."
   (delete-region (point-min) (point-max))
   (insert (jss-browser-description (jss-current-browser)) "\n\n"))
 
+(defun jss-browser-refresh (browser)
+  (with-current-buffer (jss-browser-buffer browser)
+    (jss-browser-mode-refresh)))
+
 (defun jss-browser-mode-refresh ()
   (interactive)
-  (setf buffer-read-only t)
-  
+  (setf buffer-read-only t
+        (jss-browser-buffer (jss-current-browser)) (current-buffer))
   (let ((inhibit-read-only t))
     (jss-browser-delete-and-insert-header)
-    (insert "[ Connecting... ]"))
+    (insert (format "[ Connecting to %s:%s... ]"
+                    (jss-browser-host (jss-current-browser))
+                    (jss-browser-port (jss-current-browser)))))
 
   (lexical-let ((jss-browser-buffer (current-buffer)))
     (jss-deferred-add-backs
@@ -56,15 +77,35 @@ ability to attach a console to a particular tab."
                                          'jss-tab-goto-console
                                          :other-properties (list 'jss-tab-id (jss-tab-id tab)))
                      (insert "\n")))
+                 (jss-browser-insert-help-topics)
                  (goto-char (point-min))
                  (jss-next-button))
-             (insert "No tabs found.")))))
+             (insert "No debuggable tabs found.")
+             (jss-browser-insert-help-topics)
+             (goto-char (point-min))))))
      (lambda (error)
        (with-current-buffer jss-browser-buffer
          (let ((inhibit-read-only t))
            (jss-browser-delete-and-insert-header)
            (insert "\nConnection error:\n\n" (prin1-to-string error))
+           (jss-browser-insert-help-topics)
+           (goto-char (point-min))
            (signal (first error) (rest error) )))))))
+
+(defun jss-browser-insert-help-topics ()
+  (insert "\n\n")
+  (insert "JSS Help:\n")
+  (dolist (help-topic '(("browser mode" jss-browser-mode)
+                        ("console mode" jss-console-mode)
+                        ("debugger mode" jss-debugger-mode)
+                        ("remote-objects" jss-insert-remote-value)
+                        ("the prompt" jss-insert-prompt)))
+    (insert "  ")
+           
+    (jss-insert-button (first help-topic) `(lambda ()
+                                             (interactive)
+                                             (describe-function ',(second help-topic))))
+    (insert "\n")))
 
 (defclass jss-browser-connection-details ()
   ((label         :accessor jss-browser-spec-label :initarg :label)

@@ -1,4 +1,39 @@
 
+(defgeneric jss-insert-remote-value (value)
+  "Insert a link in an emacs buffer to a browser side object.
+
+A remote value is either primitive, or non-primitive. A primitive
+value is any object where we can create a new one, which is
+however === to another one, by typing in something on the
+prompt. This means numbers, strings, and the constants true,
+false, null and undefined. Everything else is a non-primitive object.
+
+Non-primitives are mode up of a number of propreties. Depending
+on the 'kind' of object, using suggestions provided by the
+browser since they're all javascript objects underneath, we have
+specific code for rendering:
+
+* dates -  just show the is8601 timestamp
+
+* regular expression - pretty print the regexp itself
+
+* arrays - show it as a bracket list of values (the current
+  visualization could be a problem for space arrays (there's no
+  indication that certain indexes have been skipped)).
+
+* functions - we just show a truncated piece of the source
+  code (the first 40 and last 40 characters) as a button linking
+  to the sourec code itself (when we have it).
+
+* objects - for normal objects we just list the properties.
+
+Auto expanding small objects: when the object has less than
+jss-remote-value-auto-expand-property-limit (including the
+__proto__ field) we'll automatically, but asynchronously, expand
+the object in place. This is convient for small objects created
+in the prompt and for viewing the contents of exceptions, but can
+cause some buffer flicker due to the asynchronous-ness of it.")
+
 (defmethod jss-insert-remote-value ((value jss-generic-remote-primitive))
   (jss-remote-value-insert-description value))
 
