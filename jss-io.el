@@ -100,7 +100,11 @@
   (let* ((content-type (jss-io-response-content-type io))
          (cleaner (gethash content-type jss-io-cleaners)))
     (if cleaner
-        (insert (funcall cleaner (jss-io-response-data io)))
+        (let ((string (ignore-errors (funcall cleaner (jss-io-response-data io)))))
+          (if string
+              (insert string)
+            (insert "Error pretty printing:\n")
+            (insert (jss-io-response-data io))))
       (insert "Unrecognized content type: " (or  content-type "---") "\n")
       (insert (jss-io-response-data io)))))
 
