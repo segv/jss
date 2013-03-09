@@ -277,10 +277,12 @@
   (insert (slot-value d 'reason)))
 
 (defun jss-webkit-send-request-or-error (target request error-control &rest error-args)
-  (jss-deferred-add-errorback
-   (jss-webkit-send-request target request)
-   (lambda (err)
-     (apply 'error (concat error-control ":%s") (append error-args err)))))
+  (lexical-let ((error-control error-control)
+                (error-args error-args))
+    (jss-deferred-add-errorback
+     (jss-webkit-send-request target request)
+     (lambda (err)
+       (apply 'error (concat error-control ":%s") (append error-args err))))))
 
 (defmethod jss-debugger-resume ((d jss-webkit-debugger))
   (jss-webkit-send-request-or-error (jss-debugger-tab d) '("Debugger.resume") "Failed to resume execution"))
