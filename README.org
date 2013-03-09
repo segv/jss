@@ -202,3 +202,10 @@ are single letters, but if you type the wrong command you'll end up
 just inserting that char and a) it's looks really ugly and b) it can
 break some of the 'find this block' code.
 *** TODO visual indiction for sparse arrays.
+*** TODO document the debugger's resume-points
+*** TODO make the tab's url stay in sync with the browser
+we currently compute the tab's url at connect time, but if the tab
+navigates to another page we don't track that. this is a problem for
+the auto-resume function jss-is-3rd-party-exception when we start from
+an empty tab and then go to our site and we think all our own code is
+3rd party :(
