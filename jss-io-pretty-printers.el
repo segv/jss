@@ -6,7 +6,7 @@
   (let ((type (gensym)))
     `(let ((,type ',content-type))
        (dolist (type (if (listp ,type) ,type (list ,type)))
-         (setf (gethash ',content-type jss-io-cleaners) (lambda (,data) ,@body)))
+         (setf (gethash type jss-io-cleaners) (lambda (,data) ,@body)))
        ',content-type)))
 
 (defun jss-io-fontify-data-with-mode (data mode)
