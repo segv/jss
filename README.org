@@ -1,0 +1,197 @@
+* jsSlime - An emacs interface to webkit and mozilla debuggers
+
+** Salient Features
+
+1. Connects directly to your browser. Does not require injecting js
+   into pages nor using some kind of middle man / proxy (well, the
+   browser itself is the middle man or proxy). This means that any
+   page can be debugged without having to change the page itself.
+
+1. Implements 'resume points' to automatically skip exceptions in code
+   we don't control or aren't interested in debugging (i'm looking at
+   you jquery).
+
+1. It's emacs.
+
+** Installation
+
+*** Requirements
+
+1. Emacs 24 (emacs 23 probably works as well, but I haven't tested it
+   and eieio is a big complicated chunk 'o code which may or may not
+   work the same on emacs23).
+
+1. js2-mode - Required for the prompt's syntax checker. We could very
+   easily not require it, but it's such a good js mode you should be
+   using it.
+
+1. [[https://github.com/ahyatt/emacs-websocket][emacs-websocket]] - Required for the webkit protocol (but not firefox):
+
+*** Browser Setup
+
+~jss~ needs to be able to communicate, over a network connection, with
+the browser. Both webkit and mozilla browsers require special setup
+and configuration to make this happen (fwiw: the debugger protocol is
+an open socket which gives complete and total control over your
+browser, making it too easy to open up is a huge security risk).
+
+**** WebKit (Chromium (Google Chrome), Safari, Konqueror)
+
+Just pass the argument ~--remote-debugging-port=9222~ at startup.
+
+So, for chrome on linux this means:
+
+#+BEGIN_EXAMPLE
+google-chrome --remote-debugging-port=9222
+#+END_EXAMPLE
+
+and for chrome on macs it's:
+
+#+BEGIN_EXAMPLE
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222
+#+END_EXAMPLE
+
+**** Mozilla (firefox)
+
+In order to startup the debugger as a network server we have to run
+some javascript code in the browser, there's no simple command line
+argument to do this for us.
+
+1. Make sure the following prefs are set:
+
+   #+BEGIN_EXAMPLE
+   user_pref("devtools.chrome.enabled", true);
+   user_pref("devtools.debugger.remote-enabled", true);
+   #+END_EXAMPLE
+
+   Do this either by visiting ~about:config~ or by editing prefs.js in
+   your profile directory, and then restarting firefox.
+
+1. Startup the debugger server
+
+   Once firefox has started up go to ~Tools/Web Developer/Scratchpad~,
+   then choose the menu option ~Environment/Browser~. Either either of
+   these two menus items don't exist then your prefrences have not been
+   properly set.
+
+   In the scratchpad window paste the following code snippet:
+
+   #+BEGIN_EXAMPLE
+   Components.utils.import("resource://gre/modules/devtools/dbg-server.jsm"); 
+   DebuggerServer.init(function () { return true; });
+   DebuggerServer.addBrowserActors();
+   DebuggerServer.openListener(6000);
+   #+END_EXAMPLE
+
+   That will start up a new debugger server listening on port ~6000~.
+
+*** Connecting
+
+Assuming the browser and emacs are running on the same machine just
+call ~jss-connect~ and specify the browser type (either ~webkit~ or
+~firefox~), the host should be ~127.0.0.1~ and the port is either
+~9222~ or ~6000~ if you've followed the above instructions literally.
+
+If the browser is running on a remote machine you'll need to create a
+tunnel from the machine with emacs to the browser (this may not be
+totally true, but given the totally unencrypted nature of the
+conneciton, it's not a bad idea, if you're attaching to a mobile
+device, figure it out and let me know...):
+
+   #+BEGIN_EXAMPLE
+   ssh -L<port>:127.0.0.1:<port> user@machine_with_browser
+   #+END_EXAMPLE
+
+Where ~<port>~ is 9222 or 6000 or whatever.
+
+** Usage
+
+After running ~M-x jss-connect~ and successfully connecting you'll
+have ~*JSS Browser*~ buffer with a list of debuggable tabs. Note that,
+since we're taking over the browser's debugger, tabs that already have
+an inspector or console or whatnot on them can not be debugged via
+~jss~.
+
+Hit ~RET~ on an ~open console~ link to jump to a console/logger in
+that particular tab.
+
+*** General UI Notes
+
+As much as possible ~jss~ tries to have a discoverable UI. Everything
+that is not just text, but is hides more data or a button to some
+action, uses emacs' standard ~button-face~. Hitting ~TAB~ in any ~jss~
+buffer wil jump between the available buttons in the buffer. Hitting
+~RET~ on a button wil invoke its primary aciton (which is usually
+"show this thing completly" or "jump to the buffer for this thing"),
+while ~SPC~ will invoke its secondary action (which is usually "show a
+preview of this thing" or "jump to this but in another window and
+don't move point")
+
+*** The Tools
+
+1. the console - a live (constantly updated) buffer showing network
+   io, log messages, exceptions, etc.
+
+   to avoid documentation duplication the rest of the docs for the
+   console are in ~jss-console-mode~'s docstring. See the file
+   ~jss-console.el~ or call ~describe-mode~ in a console buffer.
+
+1. the debugger - a buffer for inspecting and working with
+   exceptions. will pop-up automatically whenever the browser
+   encounters an exception.
+
+   as with the console the documentation is kept in
+   ~jss-debugger-mode~'s docstring.
+
+1. the io inspector - viewing requests and response (normal and
+   xhr/ajax ones). whenever the browser sends out a request, or gets a
+   response, and network monitoring is on (the default) a line is sent
+   to the console buffer with the target url. the url is a button
+   which will open up an io inspector.
+
+   see ~jss-io-mode~'s docstring for more details.
+
+1. the prompt - in consoles, and in the frames of debugger, we have a
+   prompt where we can send javascript to the server and get the
+   results back.
+
+   see ~jss-prompt.el~ for more details.
+
+1. remote values - often we'll have to work with, either in the
+   console as the result of some code or in the debugger, an complex
+   object whose value lives inside the browser.  ~jss~ will insert
+   buttons, which can be expanded, for this values.
+
+   see ~jss-remote-value.el~ for more details.
+
+** TODOs
+
+*** TODO Implement mapping from URLs to source code files.
+
+It's annoying to have to jump from a ~*JSS Script*~ buffer to the
+sourec code (epecially 'cause they often look exactyl alike). We need
+a simple list of functions which, given a complete url and line/column
+numbers, return an emacs buffer we should visit instead of creating a
+~*JSS Script*~ buffer.
+
+*** TODO Implement firefox protocol
+
+The underlying communication code, opening the socket, writing and
+messages, work, but the protocol itself still needs to be implemented.
+
+*** TODO Implement the DOM inspector
+
+At the very least we want to get an emacs buffer with the dom layed
+out and formatted as the browser sees it. It'd also be very helpful if
+we could, from this buffer, trigger click / submit events, though I'm
+not sure if this is possible withotu having to send js to the remote
+browser (which i'd really rather not do).
+
+*** TODO Implement an function which also starts up a browser with the right args
+
+If you're going to run the browser on the same machine as emacs it'd
+be pretty easy to check for browsers in a few common locations and, if
+found, exec them with the required args.
+
+On firefox we'd still have the manual 'run script' step, not sure how
+to work around this.
