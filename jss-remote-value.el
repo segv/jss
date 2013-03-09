@@ -13,24 +13,17 @@
 
 (defvar jss-remote-value-auto-expand-property-limit 6)
 
-(defun jss-autoexpand-small-remote-object (object max-property-length)
-  (when jss-remote-value-auto-expand-property-limit
+(defmethod jss-autoexpand-small-remote-object ((object jss-generic-remote-object) max-property-length)
+  (when max-property-length
     (lexical-let ((object object)
                   (max-property-length max-property-length)
                   (buffer (current-buffer)))
       (jss-deferred-add-callback
        (jss-remote-object-get-properties object (jss-current-tab))
        (lambda (properties)
-         (when (and jss-remote-value-auto-expand-property-limit
+         (when (and max-property-length
                     (<= (length properties) max-property-length))
            (jss-remote-value-replace-with-properties object properties buffer)))))))
-
-(defun jss-remote-value-expand-at-point ()
-  (interactive)
-  (let ((value (get-text-property (point) 'jss-remote-value)))
-    (unless value
-      (error "No value at point."))
-    (jss-remote-value-expand value)))
 
 (defmacro* jss-replace-with-default-property ((property-name property-value &key (test 'eq)) &body body)
   (declare (indent 1))
@@ -91,7 +84,18 @@
        (lambda (properties)
          (jss-remote-value-replace-with-properties value properties buffer))))))
 
-(defun jss-remote-value-replace-with-properties (value properties buffer)
+(defun jss-remote-value-insert-as-object-properties (alist separator identp)
+  (loop for first = t then nil
+        for (prop . more) on alist
+        when identp
+          do (indent-to-column left-column)
+        do (jss-insert-with-highlighted-whitespace (car prop))
+        do (insert ": ")
+        do (jss-insert-remote-value (cdr prop))
+        when more
+        do (insert separator)))
+
+(defmethod jss-remote-value-replace-with-properties ((value jss-generic-remote-object) properties buffer)
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
       (when (jss-remote-value-collapsed value) 
@@ -114,14 +118,7 @@
                    nil)))
             (jss-remote-value-insert-description value)
             (insert " {\n")
-            (loop for first = t then nil
-                  for (prop . more) on properties
-                  do (indent-to-column left-column)
-                  do (jss-insert-with-highlighted-whitespace (car prop))
-                  do (insert ": ")
-                  do (jss-insert-remote-value (cdr prop))
-                  when more
-                  do (insert ",\n"))
+            (jss-remote-value-insert-as-object-properties properties ",\n" t)
             (insert "}")))))))
 
 (defmethod jss-remote-value-expand ((value jss-generic-remote-function))
@@ -141,21 +138,35 @@
       (jss-deferred-add-callback
        (jss-remote-object-get-properties value (jss-current-tab))
        (lambda (properties)
-         (let ((integer-properties '())
-               (other-properties '()))
-           (dolist (prop properties)
-             (if (string-to-number (car prop))
-                 (push (cons (string-to-number (car prop)) (cdr prop)) integer-properties)
-               (push prop other-properties)))
-           (jss-replace-with-default-property (jss-remote-value value :test 'eq)
-             (with-current-buffer buffer
-               (loop
-                initially (insert "[")
-                for item in (cl-sort integer-properties '< :key 'car)
-                for first = t then nil
-                unless first do (insert ", ")
-                do (jss-insert-remote-value (cdr item))
-                finally (insert "]"))))))))))
+         (jss-remote-value-replace-with-properties value properties buffer))))))
+
+(defmethod jss-remote-value-replace-with-properties ((value jss-generic-remote-array) properties buffer)
+  (let ((integer-properties '())
+        (other-properties '()))
+    (dolist (prop properties)
+      (destructuring-bind (key . value) prop
+        (if (save-match-data (string-match "^[[:digit:]]+$" key))
+            (push (cons (string-to-number key) value) integer-properties)
+          (push prop other-properties))))
+    (jss-replace-with-default-property (jss-remote-value value :test 'eq)
+      (with-current-buffer buffer
+        (loop
+         initially (insert "[")
+         for item in (cl-sort integer-properties '< :key 'car)
+         for first = t then nil
+         unless first do (insert ", ")
+         do (jss-insert-remote-value (cdr item))
+         finally (insert "]"))
+        (insert " {")
+        (jss-remote-value-insert-as-object-properties other-properties ", " nil)
+        (insert "}")))))
+
+(defun jss-remote-value-expand-at-point ()
+  (interactive)
+  (let ((value (get-text-property (point) 'jss-remote-value)))
+    (unless value
+      (error "No value at point."))
+    (jss-remote-value-expand value)))
 
 (defun jss-expand-nearest-remote-value ()
   (interactive)
