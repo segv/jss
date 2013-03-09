@@ -36,7 +36,10 @@
 
    (marker-overlay :initform nil :accessor jss-prompt-marker-overlay)
    (input-overlay  :initform nil :accessor jss-prompt-input-overlay)
-   (output-overlay :initform nil :accessor jss-prompt-output-overlay)))
+   (output-overlay :initform nil :accessor jss-prompt-output-overlay)
+
+   (local-map)
+   (keymap)))
 
 (defun* jss-insert-prompt (submit-function &key local-map keymap previous-prompt)
   (unless (or (bobp) (= (point) (line-beginning-position)))
@@ -63,17 +66,31 @@
         (setf (jss-prompt-input-overlay prompt) (make-overlay input-start (point)))
         (overlay-put (jss-prompt-input-overlay prompt) 'face 'highlight)
 
-        (cl-flet ((make-parent-map (child)
-                    (let ((map (copy-keymap child)))
-                      (set-keymap-parent map jss-prompt-map)
-                      map)))
+        (cl-labels ((make-parent-map (child)
+                      (let ((map (copy-keymap child)))
+                        (set-keymap-parent map jss-prompt-map)
+                        map))
+                    (set-local-map (map)
+                      (setf (slot-value prompt 'local-map) (make-parent-map map))
+                      (overlay-put (jss-prompt-input-overlay prompt) 'local-map (slot-value prompt 'local-map)))
+                    (set-keymap (map)
+                      (setf (slot-value prompt 'keymap) map)
+                      (overlay-put (jss-prompt-input-overlay prompt) 'keymap  (slot-value prompt 'keymap))))
           (cond
            (local-map
-            (overlay-put (jss-prompt-input-overlay prompt) 'local-map (make-parent-map local-map)))
+            (set-local-map local-map))
            (keymap
-            (overlay-put (jss-prompt-input-overlay prompt) 'keymap (make-parent-map keymap)))
+            (set-keymap keymap))
+           (previous-prompt
+            (cond
+             ((slot-boundp previous-prompt 'local-map)
+              (set-local-map (slot-value previous-prompt 'local-map)))
+             ((slot-boundp previous-prompt 'keymap)
+              (set-keymap (slot-value previous-prompt 'keymap)))
+             (t
+              (set-keymap jss-prompt-map))))
            (t
-            (overlay-put (jss-prompt-input-overlay prompt) 'keymap jss-prompt-map))))))
+            (set-keymap jss-prompt-map))))))
     prompt))
 
 (defmethod jss-prompt-start-of-input ((prompt jss-prompt))
@@ -193,13 +210,10 @@ Supply a prefix arg to force sending the current text"
         (goto-char (point-max))))))
 
 (defmethod jss-prompt-set-input-text ((prompt jss-prompt) input-text)
-  (let* ((location (jss-prompt-input-location prompt))
-         (inhibit-read-only t)
-         (properties (text-properties-at (car location))))    
-    (delete-region (car location) (cdr location))
-    (goto-char (car location))
-    (jss-wrap-with-text-properties properties
-      (insert input-text))))
+  (let ((overlay (jss-prompt-input-overlay prompt)))
+    (goto-char (overlay-start overlay))
+    (insert input-text)
+    (delete-region (point) (overlay-end overlay))))
 
 (defsetf jss-prompt-input-text jss-prompt-set-input-text)
 
