@@ -7,12 +7,21 @@
                          map))
 
 (defun jss-insert-button (label &rest jss-add-text-button-args)
+  "Insert a jss-button with text `label` at the current point in
+the current buffer. Pass `jss-add-text-button-args` to
+`jss-add-text-button`."
   (let ((start (point)))
     (insert-and-inherit label)
     (apply 'jss-add-text-button start (point) jss-add-text-button-args)
     label))
 
 (defun* jss-add-text-button (start end primary-action &key secondary-action other-properties)
+  "Create a jss-button, whose primary (RET) action is
+`primary-action´ and whose secondary action (SPC) is
+`secondary-action` from the positions `start` to `end`.
+
+`other-properties`, if specified, are added as text properties
+from `start` to `end`."
   (let ((o (make-overlay start end (current-buffer))))
     (overlay-put o 'face 'jss-button-face)
     (overlay-put o 'keymap jss-button-map)
@@ -42,6 +51,7 @@
       (call-interactively 'self-insert-command)))
 
 (defun jss-next-button ()
+  "Move point to the start the next jss-button after point."
   (interactive)
   (let ((target nil))
     (save-excursion
@@ -56,6 +66,7 @@
       (goto-char target))))
 
 (defun jss-previous-button ()
+  "Move point to the first buton before point."
   (interactive)
   (let ((target nil))
     (save-excursion
@@ -75,54 +86,65 @@
       (goto-char (jss-start-of-current-property-block 'jss-button)))))
 
 (defun jss-log-event (event)
+  "Debugger method, put some text describing `event` in the buffer *jss-events*"
   (with-current-buffer (get-buffer-create " *jss-events*")
     (insert (format ";; %s\n" (format-time-string "%Y-%m-%dT%T")))
     (dolist (event-part event)
       (insert (prin1-to-string event-part) "\n"))
     (insert ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n")))
 
-(defun jss-comment-char (string)
-  (jss-wrap-with-text-properties (list 'face font-lock-comment-face
-                                       'font-lock-face font-lock-comment-face)
+(defface jss-whitespace-mark-face '((t :inherit font-lock-comment-face))
+  "Face user to mark significant whitespace.")
+
+(defun jss-insert-as-whitespace (string)
+  (jss-wrap-with-text-properties (list 'face jss-whitespace-mark-face
+                                       'font-lock-face jss-whitespace-mark-face)
     (insert-and-inherit string)))
 
 (defun jss-eol-mark ()
   (when (member (preceding-char) (list ?  ?\n ?\t ?\r))
-    (jss-comment-char "$"))
+    (jss-insert-as-whitespace "$"))
   (insert-and-inherit "\n"))
 
 (defun jss-insert-with-highlighted-whitespace (string)
   (save-match-data
     (when (string= "" string)
-      (jss-comment-char "^$"))
+      (jss-insert-as-whitespace "^$"))
     (when (string-match "^[ \t\r\n\f]" string)
-      (jss-comment-char "^"))
+      (jss-insert-as-whitespace "^"))
     (loop
      for char across string
      do (case char
-          (?\s (jss-comment-char "_"))
-          (?\t (jss-comment-char "\\t"))
-          (?\n (jss-comment-char "\\n"))
-          (?\r (jss-comment-char "\\r"))
-          (?\f (jss-comment-char "\\f"))
+          (?\s (jss-insert-as-whitespace "_"))
+          (?\t (jss-insert-as-whitespace "\\t"))
+          (?\n (jss-insert-as-whitespace "\\n"))
+          (?\r (jss-insert-as-whitespace "\\r"))
+          (?\f (jss-insert-as-whitespace "\\f"))
           (t
            (insert-and-inherit (char-to-string char))
            (remove-text-properties (1- (point)) (point) (list 'face t 'font-lock-face t)))))
     (when (string-match "[ \t\r\n\f]$" string)
-      (jss-comment-char "$"))))
+      (jss-insert-as-whitespace "$"))))
 
 (defun jss-section-marker ()
   (insert-and-inherit "--------------------------------\n"))
 
 (defun jss-have-next-property-block (property-name)
+  "Returns T if the current buffer has a block at or
+after (point) with the text property `property-name`."
   (or (get-text-property (point) property-name)
       (next-single-property-change (point) property-name)))
 
 (defun jss-have-previous-property-block (property-name)
+  "Returns T if the current buffer has a block at or
+before (point) with the text property `property-name`."
   (or (get-text-property (point) property-name)
       (previous-single-property-change (point) property-name)))
 
 (defun* jss-start-of-next-property-block (property-name &optional (error t))
+  "Moves point to the first char of the next block with property
+`property-name`. If `error` is non-NIL signals and error if there is
+no next block with the required property."
   (block nil
     (when (get-text-property (point) property-name)
       (return (jss-start-of-current-property-block property-name)))
@@ -138,7 +160,11 @@
       (return (point)))))
 
 (defun* jss-end-of-previous-property-block (property-name &optional (error t))
-  (block nil
+  "Moves point to the last char of the nexprevious block with
+property `property-name`. If `error` is non-NIL signals and error
+if there is no next block with the required property."
+  (block
+      nil
     (when (get-text-property (point) property-name)
       (return (jss-end-of-current-property-block property-name)))
 
@@ -177,6 +203,15 @@
   (point))
 
 (defun* jss-find-property-block (property-name property-value &key (test 'equal) (error t))
+  "Returns a cons of (start . end) of the proerty block, a
+sequence fo char which all habe the property named
+`property-name` whose value is `test` to `property-value` in the
+current buffer.
+
+Note: this function does not deal well when there are multiple
+blocks with the same property name and value, make sure to use
+rear-nonsticky to maintain blocks as continguous sequences of
+chars."
   (block nil
     (save-excursion
       (goto-char (point-max))
@@ -219,6 +254,9 @@
            (add-text-properties ,start (point) ,properties))))))
 
 (defun jss-limit-string-length (string max-length)
+  "if `string` is longer than `max-length` returns the first (/
+  max-length 2) chars and the last (/ max-length 2) chars with
+  \"...[snip]...\" between them. "
   (if (< max-length (length string))
       (format "%s...[snip]...%s"
               (substring string 0 (/ max-length 2))

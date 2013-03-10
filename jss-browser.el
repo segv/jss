@@ -45,10 +45,16 @@ manually running jss-browser-mode-refresh (usually bound to
   (insert (jss-browser-description (jss-current-browser)) "\n\n"))
 
 (defun jss-browser-refresh (browser)
+  "Refresh the contents of the buffer describing `buffer`.
+
+See `jss-browser-mode-refresh` for the actual implementation."
   (with-current-buffer (jss-browser-buffer browser)
     (jss-browser-mode-refresh)))
 
 (defun jss-browser-mode-refresh ()
+  "Delete the contents of the current buffer, get a new list of
+available tabs, and reinsert buttons to consoles (if
+applicable)."
   (interactive)
   (setf buffer-read-only t
         (jss-browser-buffer (jss-current-browser)) (current-buffer))
@@ -93,6 +99,8 @@ manually running jss-browser-mode-refresh (usually bound to
            (signal (first error) (rest error) )))))))
 
 (defun jss-browser-insert-help-topics ()
+  "Insert a list fo links to the documentation for jss's main
+modes."
   (insert "\n\n")
   (insert "JSS Help:\n")
   (dolist (help-topic '(("browser mode" jss-browser-mode)
@@ -132,6 +140,8 @@ manually running jss-browser-mode-refresh (usually bound to
 (defvar jss-connect/select-browser-history '())
 
 (defun jss-connect (browser-label)
+  "Query the user for a browser type, a host, and a port, and
+jump to its browser buffer."
   (interactive (list (let ((completion-ignore-case t))
                        (completing-read "Browser: "
                                         (mapcar (lambda (browser-spec)
