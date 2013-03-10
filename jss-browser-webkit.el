@@ -85,6 +85,14 @@
 (defmethod jss-webkit-tab-json-prop ((tab jss-webkit-tab) prop-name)
   (cdr (assoc prop-name (slot-value tab 'json-data))))
 
+(defmethod jss-webkit-tab-json-set-prop ((tab jss-webkit-tab) prop-name prop-value)
+  (if (assoc prop-name (slot-value tab 'json-data))
+      (setf (cdr (assoc prop-name (slot-value tab 'json-data))) prop-value)
+    (push (cons prop-name prop-value) (slot-value tab 'json-data)))
+  prop-value)
+
+(defsetf jss-webkit-tab-json-prop jss-webkit-tab-json-set-prop)
+
 (defmethod jss-tab-title ((tab jss-webkit-tab))
   (jss-webkit-tab-json-prop tab 'title))
 
@@ -770,7 +778,8 @@
 
 ;;; not in docs?
 (define-jss-webkit-notification-handler "Page.frameNavigated" (frame)
-  (jss-console-log-message console "frame %s navigated to %s" (cdr (assoc 'id frame)) (cdr (assoc 'url frame))))
+  (jss-console-log-message console "frame %s navigated to %s" (cdr (assoc 'id frame)) (cdr (assoc 'url frame)))
+  (setf (jss-webkit-tab-json-prop tab 'url) (cdr (assoc 'url frame))))
 
 ;;; not in docs?
 (define-jss-webkit-notification-handler "Page.frameDetached" (frameId)
