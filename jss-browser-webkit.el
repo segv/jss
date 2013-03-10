@@ -79,7 +79,7 @@
    (request-counter :initform 0)
    (requests :initform (make-hash-table :test 'equal)))) 
 
-(defmethod jss-tab-debugger-p ((tab jss-webkit-tab))
+(defmethod jss-tab-available-p ((tab jss-webkit-tab))
   (slot-value tab 'debugger-url))
 
 (defmethod jss-webkit-tab-json-prop ((tab jss-webkit-tab) prop-name)

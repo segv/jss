@@ -69,7 +69,7 @@ manually running jss-browser-mode-refresh (usually bound to
                (progn
                  (dolist (tab (jss-browser-tabs browser))
                    (insert (format "%s.%s - %s\n" (jss-tab-id tab) (jss-tab-title tab) (jss-tab-url tab)))
-                   (when (jss-tab-debugger-p tab)
+                   (when (jss-tab-available-p tab)
                      (insert "  ")
                      (jss-insert-button (if (jss-tab-console tab)
                                             "[ goto console ]"
