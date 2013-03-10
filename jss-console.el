@@ -40,7 +40,8 @@ globally (and not just in prompt fields), which makes it easy to
 expand objects while moving around the buffer."
   (add-hook 'kill-buffer-hook 'jss-console-kill nil t)
   ;; assume caller binds jss-console
-  (setf jss-current-console-instance jss-console)
+  (setf jss-current-console-instance jss-console
+        jss-current-tab-instance (jss-console-tab jss-console))
 
   (lexical-let ((tab (jss-current-tab)))
     (goto-char (jss-prompt-start-of-input
@@ -68,13 +69,10 @@ expand objects while moving around the buffer."
   (let ((jss-console console))
     (jss-console-mode)))
 
-(defun jss-current-tab ()
-  (or jss-current-tab-instance
-      (if (jss-current-console)
-          (jss-console-tab (jss-current-console))
-          nil)))
+(defun jss-current-tab () jss-current-tab-instance)
 
 (defun jss-tab-goto-console (&optional tab)
+  "Switch to the console buffer for `tab`."
   (interactive (list (let ((tab-id (get-text-property (point) 'jss-tab-id)))
                        (unless tab-id
                          (error "No tab at point."))
@@ -87,6 +85,8 @@ expand objects while moving around the buffer."
     (jss-tab-ensure-console tab))))
 
 (defmethod jss-tab-ensure-console ((tab jss-generic-tab))
+  "If `tab` doesn#t already have a console buffer, the create,
+otherwise return it (in either case don't switch to it)"
   (or (jss-tab-console tab)
       (let ((console (jss-tab-make-console tab :tab tab)))
         (setf (jss-tab-console tab) console)
@@ -95,22 +95,27 @@ expand objects while moving around the buffer."
         console)))
 
 (defun jss-console-ensure-connection ()
+  "Return a deferred which will connect the the current tab's
+console, if we are not conected to the curent tab then connect to
+it."
   (interactive)
   (unless (jss-current-console)
     (error "No current console object. Can't open console here."))
-  (if (jss-tab-connected-p (jss-console-tab (jss-current-console)))
-      (make-jss-completed-deferred :callback (jss-console-tab (jss-current-console)))
-    (unless (jss-tab-connected-p (jss-console-tab (jss-current-console)))
+  (if (jss-tab-connected-p (jss-current-tab))
+      (make-jss-completed-deferred :callback (jss-current-tab))
+    (unless (jss-tab-connected-p (jss-current-tab))
       (jss-console-debug-message (jss-current-console) "Connecting...")
       (lexical-let ((buf (current-buffer)))
         (jss-deferred-then
-         (jss-tab-connect (jss-console-tab (jss-current-console)))
+         (jss-tab-connect (jss-current-tab))
          (lambda (tab)
            (with-current-buffer buf
              (jss-console-debug-message (jss-current-console) "Connected."))
            tab))))))
 
 (defun jss-console-kill ()
+  "Close the connection to the current console/tab and perfrom
+any necessary cleanup."
   (interactive)
   (let ((browser (jss-tab-browser (jss-console-tab (jss-current-console)))))
     (jss-console-close (jss-current-console))
@@ -118,18 +123,23 @@ expand objects while moving around the buffer."
     (jss-browser-refresh browser)))
 
 (defmethod jss-console-debug-message ((console jss-generic-console) &rest format-message-args)
+  "Append a message, of priority \"debug\", to `console`."
   (apply 'jss-console-format-message console 'debug format-message-args))
 
 (defmethod jss-console-log-message ((console jss-generic-console) &rest format-message-args)
+  "Append a message, of priority \"log\", to `console`."
   (apply 'jss-console-format-message console 'log format-message-args))
 
 (defmethod jss-console-warn-message ((console jss-generic-console) &rest format-message-args)
+  "Append a message, of priority \"warn\", to `console`."
   (apply 'jss-console-format-message console 'warn format-message-args))
 
 (defmethod jss-console-error-message ((console jss-generic-console) &rest format-message-args)
+  "Append a message, of priority \"error\", to `console`."
   (apply 'jss-console-format-message console 'error format-message-args))
 
 (defun jss-console-level-face (level)
+  "Returns the emacs face to use for console message of priority `level`"
   (ecase level
     (debug 'jss-console-debug-message)
     (log   'jss-console-log-message)
@@ -146,6 +156,14 @@ expand objects while moving around the buffer."
           " // "))
 
 (defmethod jss-console-format-message ((console jss-generic-console) level format-string &rest format-args-and-properties)
+  "Insert a message, ser the face correspoding to `level` in the
+current buffer (which must be a console buffer). `format-string`
+and `format-args-and-properties` are passed to `format` to
+compute the text to be inserted.
+
+if `format-args-and-properties` contains a :properties <values>
+element then the text properites <values> will be added to the
+inserted text."
   (let ((properties nil)
         (format-args nil))
     (if (member :properties format-args-and-properties)
@@ -184,6 +202,8 @@ expand objects while moving around the buffer."
           (insert "\n"))))))
 
 (defmethod jss-console-insert-io-line ((console jss-generic-console) io)
+  "Insert a line into the current buffer (which must be a console
+buffer) describing the current state of `io`."
   (with-current-buffer (jss-console-buffer console)
     (save-excursion
       (jss-before-last-prompt)
@@ -210,11 +230,16 @@ expand objects while moving around the buffer."
   (jss-console-insert-io-line console io))
 
 (defmethod jss-console-update-request-message ((console jss-generic-console) io)
+  "Find the line in the current buffer (a console buffer)
+corrsepdongin to `io` and replace it with a line describing the
+current state of `io`."
   (with-current-buffer (jss-console-buffer console)
     (jss-delete-property-block 'jss-io-id (jss-io-id io) :error nil)
     (jss-console-insert-io-line console io)))
 
 (defun jss-console-clear-buffer ()
+  "Delete the contents of current console buffer and release any
+browser side objects."
   (interactive)
   (let ((console (jss-current-console)))
     (jss-console-clear console)
@@ -231,6 +256,7 @@ expand objects while moving around the buffer."
     (jss-prompt-next-input)))
 
 (defun jss-console-reload-page ()
+  "Tell the browser to reload the current tab."
   (interactive)
   (lexical-let ((tab (jss-current-tab)))
     (jss-deferred-add-backs

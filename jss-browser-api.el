@@ -7,20 +7,39 @@
   ((host :initarg :host :accessor jss-browser-host)
    (port :initarg :port :accessor jss-browser-port)
    (tabs :initform '())
-   (buffer :accessor jss-browser-buffer)))
+   (buffer :accessor jss-browser-buffer))
+  (:documentation "A specific browswer running somewhere, that be
+  wan communicate with, and which, hopefully, has tabs we can
+  attach a console to."))
 
 (defgeneric jss-browser-get-tabs (browser)
-  "Refreshes the list of availale tabs.
+  "Gets, and stores for later retrevial via `jss-browser-tabs`,
+the list of currently open tabs in in `brower`.
 
 Since we store references to tab objects in various buffers it is
-important that this method modify, but no recreate, any already
+important that this method modify, but not recreate, any already
 existing tab objects.")
 
-(defgeneric jss-browser-description (browser))
+(defgeneric jss-browser-description (browser)
+  "Gets a human readable description of this browser. This string
+is used, as is, in the *jss-browser* buffer to tell the user what
+they're connected to.")
 
-(defgeneric jss-browser-tabs (browser))
+(defgeneric jss-browser-tabs (browser)
+  "Returns a list of jss-generic-tab objects, one for each tab
+that was open when `jss-browser-get-tabs` was called.")
 
-(defgeneric jss-browser-find-tab (browser tab-id))
+(defgeneric jss-browser-find-tab (browser tab-id)
+  "Given `tab-id`, an arbitrary opaque object returned by a
+previous call to jss-tab-id, returns the corresponding tab
+object.
+
+We will sometimes need to store tab IDs and not tab objects
+directly, this method server to map back from the ID to original
+object.
+
+No assumptions are made about the id objects themselves, except
+that they are globally unique.")
 
 (defclass jss-generic-tab ()
   ((browser :initarg :browser :accessor jss-tab-browser)
@@ -28,10 +47,13 @@ existing tab objects.")
    (ios :initform (make-hash-table :test 'equal)
         :accessor jss-tab-ios)
    (scripts :initform (make-hash-table :test 'equal)
-            :accessor jss-tab-scripts)))
+            :accessor jss-tab-scripts))
+  (:documentation "A tab in a browser."))
 
 (make-variable-buffer-local
- (defvar jss-current-tab-instance nil))
+ (defvar jss-current-tab-instance nil
+   "The current tab that should be used if we need to comunicate
+ with the browser."))
 
 (defun jss-current-tab ()
   (or jss-current-tab-instance
@@ -39,42 +61,96 @@ existing tab objects.")
           (jss-console-tab (jss-current-console))
         nil)))
 
-(defgeneric jss-tab-debugger-p (tab))
+(defgeneric jss-tab-availabe-p (tab)
+  "Returns T if `tab` can be debugged, which means we'll try to
+attach a console to it, returns NIL otherwise (which usually, but
+not always, means there's already an in-browser debugger attached
+to `tab`.")
 
-(defgeneric jss-tab-title (tab))
+(defgeneric jss-tab-title (tab)
+  "Returns the current title (a string) of the tab. Used to
+inform the user about the state of the page being viewed.
 
-(defgeneric jss-tab-url (tab))
+As much as possible this should stay synchronized with the
+current state of the browser, but jss itself doesn't depend an
+the accuracy of this method (though the user would appreciate it
+if it was accurate).")
 
-(defgeneric jss-tab-connected-p (tab))
+(defgeneric jss-tab-url (tab)
+  "Returns the current url of the tab. This used both to inform
+the user what url the tab is currently viewing and by jss's
+debugger's auto-resume-points.
 
-(defgeneric jss-tab-connect (tab))
+As much as possible this should reflect the current state of the
+browser, nothing will break if this returns a stale url, but some
+functionality will not work as expected.")
 
-(defgeneric jss-tab-disconnect (tab))
+(defgeneric jss-tab-connected-p (tab)
+  "Returns T if jss has an open connection to `tab`. This
+usually, but not always, means there's a console buffer for
+`tab`.")
 
-(defgeneric jss-tab-make-console (tab &rest initargs))
+(defgeneric jss-tab-connect (tab)
+  "Returns to `tab`, returns a deferred object which will
+complete when the connection has been established.")
 
-(defgeneric jss-tab-open-debugger (tab debugger))
+(defgeneric jss-tab-disconnect (tab)
+  "Disconnects from `tab`. Returns a deferred object which will
+complete when the connection has been closed.")
 
-(defgeneric jss-tab-object-properties (tab object-id))
+(defgeneric jss-tab-make-console (tab &rest initargs)
+  "Creates a console instance for `tab`, passing make-instance
+`initargs`. this method is basically a factory for browsers
+specific console implementations.")
 
-(defgeneric jss-tab-disable-network-monitor (tab))
+(defgeneric jss-tab-disable-network-monitor (tab)
+  "Disables logging and tracking of network IO for `tab`.")
 
-(defgeneric jss-tab-enable-network-monitor (tab))
+(defgeneric jss-tab-enable-network-monitor (tab)
+  "Enables loggint and tracking of network IO.")
+
+(defgeneric jss-tab-object-properties (tab object-id)
+  "Returns an alist of proerty names and values for the remote
+with id `object-id` in the current context of `tab`.
+
+The keps of the plist are strings (simple elisp strings) and the
+values are remote object instances (primitve and non).")
 
 (defclass jss-generic-script ()
   ((tab :initarg :tab :accessor jss-script-tab)
    (buffer :initform nil :accessor jss-script-buffer)
-   (body :initform nil :accessor jss-script-body)))
+   (body :initform nil :accessor jss-script-body))
+  (:documentation "Reprsents a single piece of javascript source
+code where errors can occur.
 
-(defgeneric jss-script-id (script))
+A script object usually, but not neccessarily, corrseponds to a
+url or a <script> tag (the main exception being code internal to
+the browser itself."))
 
-(defgeneric jss-script-url (script))
+(defgeneric jss-script-id (script)
+  "Return a globally unique identifier for the script
+`script`.")
 
-(defgeneric jss-script-get-body (script))
+(defgeneric jss-script-url (script)
+  "Return the url, or as close to one as possible, for the script
+  `script`. The returned ulr should help the user understand, as
+  much as possible, where to edit the source of `script`.")
 
-(defgeneric jss-evaluate (context text))
+(defgeneric jss-script-get-body (script)
+  "Returns a deferred which, when it completes, will pass the
+source code, a string, of the script `script`.")
 
-(defgeneric jss-tab-get-script (tab script-id))
+(defgeneric jss-evaluate (context text)
+ "run the javascript code `text` and return a deferred which,
+after the code has run, will complete with the returned value (a
+remote value instance.)
+
+The context is the environment, either a tab or a frame, within
+which to run `text`.")
+
+(defgeneric jss-tab-get-script (tab script-id)
+  "Gets the script object with id `script-id` available from
+`tab`.")
 
 (defmethod jss-tab-get-script ((tab jss-generic-tab) script-id)
   (gethash script-id (jss-tab-scripts tab)))
@@ -90,7 +166,16 @@ existing tab objects.")
 (defclass jss-generic-console ()
   ((tab :initarg :tab
         :initform nil
-        :accessor jss-console-tab)))
+        :accessor jss-console-tab))
+  (:documentation "Represents the console of a tab.
+
+A console is an object which servers two pruposes:
+
+1. it can log events that have occured in a specific tab (network
+io, DOM changes, exceptions, etc.=
+
+2. it con excute code, javascript source strings, within the
+state of a specific web page."))
 
 (make-variable-buffer-local
  (defvar jss-current-console-instance nil))
@@ -98,46 +183,72 @@ existing tab objects.")
 (defun jss-current-console ()
   jss-current-console-instance)
 
-(defgeneric jss-console-clear (console))
+(defgeneric jss-console-clear (console)
+  "Clears, removes from the buffer and releases stored memory, of
+all the objects, log message objects, network io objects and
+evaluation results, currently attached to `console`.
 
-(defgeneric jss-console-buffer (console))
+This causes refernces to the IO, debugger and script items
+attached to `console` to be released within emacs and also on the
+browser (if applicable)")
 
-(defgeneric jss-console-close (console))
-
-(defmethod jss-console-close :after ((console jss-generic-console))
-  (setf (jss-tab-console (jss-console-tab console)) nil
-        (jss-console-tab console) nil))
+(defgeneric jss-console-buffer (console)
+  "Returns the current buffer where `console`'s events are logged
+and where its prompt lives.")
 
 (defmethod jss-console-buffer ((console jss-generic-console))
   (get-buffer-create
    (format "*JSS Console/%s*" (jss-tab-id (jss-console-tab console)))))
 
-(defgeneric jss-console-insert-io (console io))
+(defgeneric jss-console-close (console)
+  "Close the connection between jss and the console `console`.")
+
+(defmethod jss-console-close :after ((console jss-generic-console))
+  (setf (jss-tab-console (jss-console-tab console)) nil
+        (jss-console-tab console) nil))
+
+(defgeneric jss-console-insert-io (console io)
+  "Insert into `console`'s log a link to the network io `io`")
 
 (defclass jss-generic-io ()
   ((tab :accessor jss-io-tab :initform nil)
    (start-time :accessor jss-io-start :initarg :start-time)
    (lifecycle :initform '() :accessor jss-io-lifecycle :initarg :lifecycle)
-   (buffer :initform nil :accessor jss-io-buffer)))
+   (buffer :initform nil :accessor jss-io-buffer))
+  (:documentation "An object that describes a single
+request/response between the browser and a server."))
 
-(defgeneric jss-io-id (io))
+(defgeneric jss-io-id (io)
+  "returns a globally unique id identifying `io`.")
 
-(defgeneric jss-io-request-headers (io))
+(defgeneric jss-io-request-headers (io)
+  "Returns the HTTP request headers sent by `io` as an alist
+whose keys and values are strings.")
 
-(defgeneric jss-io-response-headers (io))
+(defgeneric jss-io-response-headers (io)
+  "Returns the HTTP response headers sent by `io` as an alist
+whose keys and values are strings.")
 
-(defgeneric jss-io-request-method (io))
+(defgeneric jss-io-request-method (io)
+  "Returns the HTTP request method (a string) used by`io`.")
 
-(defgeneric jss-io-request-url (io))
+(defgeneric jss-io-request-url (io)
+  "The url requested by `io`.")
 
 (defgeneric jss-io-response-status (io)
-  "Either an integer specifying the status code or nil specifying that we're still waiting for the response.")
+  "Either an integer specifying the status code or nil specifying
+that we're still waiting for the response.")
 
-(defgeneric jss-io-response-content-type (io))
+(defgeneric jss-io-response-content-type (io)
+  "The normalized content type returned by `io`")
 
-(defgeneric jss-io-response-content-length (io))
+(defgeneric jss-io-response-content-length (io)
+  "the length, in bytes (not characters) of data recevied by
+`io`")
 
-(defgeneric jss-tab-get-io (tab io-id))
+(defgeneric jss-tab-get-io (tab io-id)
+  "returns the IO object in `tab` whose id is `io-id` (which is a
+value as returned by `jss-io-id`")
 
 (defmethod jss-tab-get-io ((tab jss-generic-tab) io-id)
   (gethash io-id (jss-tab-ios tab)))
@@ -152,24 +263,42 @@ existing tab objects.")
 
 (defsetf jss-tab-get-io jss-tab-set-io)
 
-(defgeneric jss-tab-unregister-io (tab io-id io-object))
-
-(defmethod jss-tab-unregister-io ((tab jss-generic-tab) io)
-  (remhash (jss-io-id io) (jss-tab-ios tab))
-  io)
-
 (defclass jss-generic-debugger ()
   ((buffer :accessor jss-debugger-buffer)
-   (tab    :accessor jss-debugger-tab :initarg :tab)))
+   (tab    :accessor jss-debugger-tab :initarg :tab))
+  (:documentation "Represents some exception, and it state, on
+the browser. "))
 
-(defgeneric jss-debugger-stack-frames (debugger))
+(defgeneric jss-debugger-stack-frames (debugger)
+  "Returns a list, in order from bottom (closest to the
+exception) to top (farthest from the error, usually an event
+handler in the browser) of jss-frame objects.")
 
-(defgeneric jss-debugger-exception (debugger))
+(defgeneric jss-debugger-exception (debugger)
+  "Returns the exception, as a remote-value, describing what went
+wrong with `debugger`")
 
-(defgeneric jss-debugger-resume    (debugger))
-(defgeneric jss-debugger-step-into (debugger))
-(defgeneric jss-debugger-step-over (debugger))
-(defgeneric jss-debugger-step-out  (debugger))
+(defgeneric jss-debugger-resume    (debugger)
+  "resume, continue or play depending on the terminolgoy, from
+exception.")
+
+(defgeneric jss-debugger-step-into (debugger)
+  "Step into the next function call (resumes the current debuuger
+and triggers a new one at the next function call in the current
+stack).")
+
+(defgeneric jss-debugger-step-over (debugger)
+    "Step over the next function call (resumes the current
+debuuger and triggers a new one before the next function call).")
+
+(defgeneric jss-debugger-step-out  (debugger)
+    "Step into the next function call (resumes the current
+debuuger and triggers a new one in the next function called by
+the function currently paused)")
+
+(defgeneric jss-tab-open-debugger (tab debugger)
+  "Creates, and switches to, a new debugger buffer given the tab
+instance `tab` and the debugger obejct `debugged`.")
 
 ;;; nb: do NOT name the debugger parameter debugger. it messes with emacs in strange ways.
 (defmethod jss-tab-open-debugger ((tab jss-generic-tab) dbg)
@@ -180,38 +309,60 @@ existing tab objects.")
     (when (buffer-live-p (jss-debugger-buffer dbg)) 
       (switch-to-buffer (jss-debugger-buffer dbg)))))
 
-(defgeneric jss-debugger-cleanup (debugger))
+(defgeneric jss-debugger-cleanup (debugger)
+  "Releases all objects, in emacs and the remote browser, tied to
+  `debugger`")
 
 (defmethod jss-debugger-cleanup ((debugger jss-generic-debugger))
   t)
 
 (defclass jss-generic-stack-frame ()
-  ((debugger :initarg :debugger :accessor jss-frame-debugger)))
+  ((debugger :initarg :debugger :accessor jss-frame-debugger))
+  (:documentation "Represents one stack frame, a function/method
+call, that lead to a pariculare execption being signaled."))
 
-(defgeneric jss-frame-function-name (frame))
+(defgeneric jss-frame-function-name (frame)
+  "The name of the function enclosing this stack frame.")
 
-(defgeneric jss-frame-source-hint (frame))
+(defgeneric jss-frame-source-hint (frame)
+  "A human readable string decribing, to the developer, where
+this frame \"is\". This string will be displayed to the suer but
+not used internally.")
 
-(defgeneric jss-frame-get-source-location (frame))
+(defgeneric jss-frame-get-source-location (frame)
+  "Return a deferred which completes with a list of (script
+  line-number column-number) which jss can use to open a buffer
+  and position point of the exact spot where this frame's
+  exception started.")
 
-(defgeneric jss-frame-restart (frame))
+(defgeneric jss-frame-restart (frame)
+  "Restart execution from this frame, taking into effect any
+changes to the global or local state that have been made. If this
+is not possible signal an error..")
 
 (defvar jss-remote-value-counter 0)
 
 (defclass jss-generic-remote-value ()
   ((id :accessor jss-remote-value-id
        :initform (incf jss-remote-value-counter)
-       :initarg :id)))
+       :initarg :id))
+  (:documentation "Represents some value in the browser."))
 
-(defgeneric jss-remote-value-description (remote-object))
+(defgeneric jss-remote-value-description (remote-object)
+  "Returns a, human readable, string describing, briefly and not
+  necessarily precisly, `remote-object`.")
 
-(defgeneric jss-remote-value-insert-description (remote-object))
+(defgeneric jss-remote-value-insert-description (remote-object)
+  "Insert into the current buffer `remote-sbject`'s
+description. Should, but need not, call
+jss-remote-value-description.")
 
 (defmethod jss-remote-value-insert-description ((o jss-generic-remote-value))
   (insert (jss-limit-string-length (jss-remote-value-description o) 60)))
 
 (defclass jss-generic-remote-primitive (jss-generic-remote-value)
-  ((value :initarg :value :accessor jss-remote-primitive-value)))
+  ((value :initarg :value :accessor jss-remote-primitive-value))
+  (:documentation "A primitive, and non divisible, remote object."))
 
 (defclass jss-generic-remote-boolean (jss-generic-remote-primitive) ())
 
@@ -253,7 +404,8 @@ existing tab objects.")
 (defclass jss-generic-remote-null (jss-generic-remote-primitive) ())
 (defmethod jss-remote-value-description ((object jss-generic-remote-null)) "null")
 
-(defclass jss-generic-remote-non-primitive (jss-generic-remote-value) ())
+(defclass jss-generic-remote-non-primitive (jss-generic-remote-value) ()
+  (:documentation "A remote value that has properites."))
 
 (defclass jss-generic-remote-object (jss-generic-remote-non-primitive) ())
 
@@ -272,4 +424,3 @@ existing tab objects.")
 (defclass jss-generic-remote-array (jss-generic-remote-object) ())
 
 (provide 'jss-browser-api)
-

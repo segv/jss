@@ -14,7 +14,7 @@
 
 (defmethod jss-script-display-at-position ((script jss-generic-script) line-number column-number)
   (if (jss-script-buffer script)
-      (jss-script-mark-offset script line-number column-number)
+      (jss-script-goto-offset script line-number column-number)
     (lexical-let ((script script)
                   (line-number line-number)
                   (column-number column-number))
@@ -25,12 +25,14 @@
                (jss-script-body script) body)
          (with-current-buffer (jss-script-buffer script)
            (jss-script-mode* script)
-           (jss-script-mark-offset script line-number column-number)))))))
+           (jss-script-goto-offset script line-number column-number)))))))
 
 (defface jss-script-line-marker-face '((t :inherit highlight))
   "Face used to highlight the area around point.")
 
-(defmethod jss-script-mark-offset ((script jss-generic-script) line-number column-number)
+(defmethod jss-script-goto-offset ((script jss-generic-script) line-number column-number)
+  "Ensure that the point ot line `line-number` and column
+`column-number` of the script body of `script` is visible."
   (with-current-buffer (jss-script-buffer script)
     (let ((inhibit-read-only t))
       (goto-char (point-min))
