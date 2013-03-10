@@ -351,6 +351,14 @@
         (make-jss-completed-deferred :callback (list (jss-tab-get-script tab script-id)
                                                      (or line-number 0)
                                                      (or column-number 0)))))))
+(defmethod jss-frame-restart ((f jss-webkit-stack-frame))
+  (jss-deferred-then
+   (jss-webkit-send-request (jss-debugger-tab d)
+                            (list "Debugger.restartFrame" (cons 'callFrameId (jss-webkit-stack-frame-id f))))
+   (lambda (response)
+     ;; not sure what to do here
+     )))
+
 
 (define-jss-webkit-notification-handler "Debugger.breakpointResolved" (breakpointId location)
   t)
