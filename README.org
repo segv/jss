@@ -129,19 +129,14 @@ don't move point")
 
 *** The Tools
 
+Note: See the manual for more details.
+
 1. the console - a live (constantly updated) buffer showing network
    io, log messages, exceptions, etc.
-
-   to avoid documentation duplication the rest of the docs for the
-   console are in ~jss-console-mode~'s docstring. See the file
-   ~jss-console.el~ or call ~describe-mode~ in a console buffer.
 
 1. the debugger - a buffer for inspecting and working with
    exceptions. will pop-up automatically whenever the browser
    encounters an exception.
-
-   as with the console the documentation is kept in
-   ~jss-debugger-mode~'s docstring.
 
 1. the io inspector - viewing requests and response (normal and
    xhr/ajax ones). whenever the browser sends out a request, or gets a
@@ -149,63 +144,12 @@ don't move point")
    to the console buffer with the target url. the url is a button
    which will open up an io inspector.
 
-   see ~jss-io-mode~'s docstring for more details.
-
 1. the prompt - in consoles, and in the frames of debugger, we have a
    prompt where we can send javascript to the server and get the
    results back.
-
-   see ~jss-prompt.el~ for more details.
 
 1. remote values - often we'll have to work with, either in the
    console as the result of some code or in the debugger, an complex
    object whose value lives inside the browser.  ~jss~ will insert
    buttons, which can be expanded, for this values.
 
-   see ~jss-remote-value.el~ for more details.
-
-** TODOs
-
-*** TODO Implement mapping from URLs to source code files.
-
-It's annoying to have to jump from a ~*JSS Script*~ buffer to the
-sourec code (epecially 'cause they often look exactyl alike). We need
-a simple list of functions which, given a complete url and line/column
-numbers, return an emacs buffer we should visit instead of creating a
-~*JSS Script*~ buffer.
-
-*** TODO Implement firefox protocol
-
-The underlying communication code, opening the socket, writing and
-messages, work, but the protocol itself still needs to be implemented.
-
-*** TODO Implement the DOM inspector
-
-At the very least we want to get an emacs buffer with the dom layed
-out and formatted as the browser sees it. It'd also be very helpful if
-we could, from this buffer, trigger click / submit events, though I'm
-not sure if this is possible withotu having to send js to the remote
-browser (which i'd really rather not do).
-
-*** TODO Implement an function which also starts up a browser with the right args
-
-If you're going to run the browser on the same machine as emacs it'd
-be pretty easy to check for browsers in a few common locations and, if
-found, exec them with the required args.
-
-On firefox we'd still have the manual 'run script' step, not sure how
-to work around this.
-*** TODO make most of the debugger buffer read-only
-
-currently non of it read only text and most of the momevment commands
-are single letters, but if you type the wrong command you'll end up
-just inserting that char and a) it's looks really ugly and b) it can
-break some of the 'find this block' code.
-*** TODO visual indiction for sparse arrays.
-*** TODO document the debugger's resume-points
-*** TODO make the tab's url stay in sync with the browser
-we currently compute the tab's url at connect time, but if the tab
-navigates to another page we don't track that. this is a problem for
-the auto-resume function jss-is-3rd-party-exception when we start from
-an empty tab and then go to our site and we think all our own code is
-3rd party :(

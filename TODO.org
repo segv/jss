@@ -1,0 +1,49 @@
+* TODO Implement mapping from URLs to source code files.
+
+It's annoying to have to jump from a ~*JSS Script*~ buffer to the
+sourec code (epecially 'cause they often look exactyl alike). We need
+a simple list of functions which, given a complete url and line/column
+numbers, return an emacs buffer we should visit instead of creating a
+~*JSS Script*~ buffer.
+
+* TODO Implement firefox protocol
+
+The underlying communication code, opening the socket, writing and
+messages, work, but the protocol itself still needs to be implemented.
+
+* TODO Implement the DOM inspector
+
+At the very least we want to get an emacs buffer with the dom layed
+out and formatted as the browser sees it. It'd also be very helpful if
+we could, from this buffer, trigger click / submit events, though I'm
+not sure if this is possible withotu having to send js to the remote
+browser (which i'd really rather not do).
+
+* TODO Implement an function which also starts up a browser with the right args
+
+If you're going to run the browser on the same machine as emacs it'd
+be pretty easy to check for browsers in a few common locations and, if
+found, exec them with the required args.
+
+On firefox we'd still have the manual 'run script' step, not sure how
+to work around this.
+* TODO make most of the debugger buffer read-only
+
+currently non of it read only text and most of the momevment commands
+are single letters, but if you type the wrong command you'll end up
+just inserting that char and a) it's looks really ugly and b) it can
+break some of the 'find this block' code.
+* TODO visual indiction for sparse arrays.
+* TODO document the debugger's resume-points
+* TODO make the tab's url stay in sync with the browser
+we currently compute the tab's url at connect time, but if the tab
+navigates to another page we don't track that. this is a problem for
+the auto-resume function jss-is-3rd-party-exception when we start from
+an empty tab and then go to our site and we think all our own code is
+3rd party :(
+
+
+* TODO report timint information in the IO buffer
+we already get a lot of into about when the requested started, how
+long we waited, how long it ttok to reiceve, etc. about a specific
+network IO. might as well display this info in the IO buffer.
