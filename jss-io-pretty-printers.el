@@ -33,6 +33,6 @@
       (insert (jss-io-response-data io))
       (goto-char (point-min))
       (setf parsed (json-read)))
-    (insert (pp-to-string parsed))))
+    (pp-to-string parsed)))
 
 (provide 'jss-io-pretty-printers)
