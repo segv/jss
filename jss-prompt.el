@@ -142,8 +142,17 @@ implemented)."
 
 (defmethod jss-prompt-input-text ((prompt jss-prompt))
   (with-current-buffer (jss-prompt-buffer prompt)
-    (buffer-substring-no-properties (overlay-start (jss-prompt-input-overlay prompt))
-                                    (overlay-end (jss-prompt-input-overlay prompt)))))
+    (let* ((overlay (jss-prompt-input-overlay prompt))
+           (start (overlay-start overlay))
+           (end   (overlay-end   overlay))
+           (input ""))
+      (save-excursion
+        (goto-char start)
+        (while (and (< (point) end) (not (eobp)))
+          (unless (get-text-property (point) 'jss-prompt-input-end-marker)
+            (setf input (concat input (buffer-substring-no-properties (point) (1+ (point))))))
+          (forward-char 1)))
+      input)))
 
 (defun jss-prompt-eval-or-newline (force-eval)
   "Evaluate the current input or insert a newline if js2 thinks
@@ -170,37 +179,36 @@ Supply a prefix arg to force sending the current text"
           (jss-prompt-submit prompt))))))
 
 (defmethod jss-prompt-submit ((prompt jss-prompt))
-  (push (jss-prompt-input-text prompt) jss-prompt-input-history)
-  (setf jss-prompt-input-history/last-inserted jss-prompt-input-history)
-  (let ((inhibit-read-only t)
-        (overlay (jss-prompt-input-overlay prompt)))
-    (lexical-let ((current-buffer (current-buffer))
-                  (prompt prompt)
-                  (input-text (jss-prompt-input-text prompt)))
-      (add-text-properties (overlay-start overlay) (overlay-end overlay)
-                           (list 'read-only t))
-      (goto-char (overlay-end overlay))
+  (lexical-let ((input-text (jss-prompt-input-text prompt)))
+    (message "Submitting %s" input-text)
+    (push input-text jss-prompt-input-history)
+    (setf jss-prompt-input-history/last-inserted jss-prompt-input-history)
+    (let ((inhibit-read-only t)
+          (overlay (jss-prompt-input-overlay prompt)))
+      (lexical-let ((current-buffer (current-buffer))
+                    (prompt prompt))
+        (add-text-properties (overlay-start overlay) (overlay-end overlay)
+                             (list 'read-only t))
+        (goto-char (overlay-end overlay))
+        (let ((output-start (point)))
+          (insert "// Evaluating...")
+          (setf (jss-prompt-output-overlay prompt) (make-overlay output-start (point))))        
 
-      (let ((output-start (point)))
-        (insert "\n// Evaluating...")
-        (setf (jss-prompt-output-overlay prompt) (make-overlay output-start (point))))
-      
-      (setf (jss-prompt-active-p prompt) nil)
+        (setf (jss-prompt-active-p prompt) nil)
+        (jss-deferred-add-backs
+         (funcall (jss-prompt-submit-function prompt) input-text)
+         (lambda (remote-object)
+           (with-current-buffer current-buffer
+             (jss-prompt-update-output prompt remote-object)))
+         (lambda (error)
+           (with-current-buffer current-buffer
+             (jss-prompt-update-output prompt error))))
 
-      (jss-deferred-add-backs
-       (funcall (jss-prompt-submit-function prompt) input-text)
-       (lambda (remote-object)
-         (with-current-buffer current-buffer
-           (jss-prompt-update-output prompt remote-object)))
-       (lambda (error)
-         (with-current-buffer current-buffer
-           (jss-prompt-update-output prompt error))))
+        (goto-char (jss-prompt-end-of-output prompt))
 
-      (goto-char (jss-prompt-end-of-output prompt))
-
-      (goto-char (jss-prompt-start-of-input
-                  (jss-insert-prompt (jss-prompt-submit-function prompt)
-                                     :previous-prompt prompt))))))
+        (goto-char (jss-prompt-start-of-input
+                    (jss-insert-prompt (jss-prompt-submit-function prompt)
+                                       :previous-prompt prompt)))))))
 
 (defmethod jss-prompt-update-output ((prompt jss-prompt) remote-object)
   (save-excursion
@@ -210,7 +218,6 @@ Supply a prefix arg to force sending the current text"
       (jss-wrap-with-text-properties (list 'read-only t
                                            'jss-prompt prompt
                                            'jss-prompt-output t)
-        (insert "\n")
         (jss-insert-remote-value remote-object)))))
 
 (defun jss-prompt-beginning-of-line (&optional n)
