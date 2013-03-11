@@ -262,28 +262,77 @@ chars."
               (substring string (- (length string) (/ max-length 2)) (length string)))
       string))
 
-(defun jss-toggling-visibility (header body)
+(defun jss-funcall-or-insert (thing)
+  (if (stringp thing)
+      (insert-and-inherit thing)
+    (funcall thing)))
+
+(cl-defun jss-toggling-visibility (header body &key (initially-visibile nil))
   (let (header-start
         header-end
         body-start
         body-end)
     (setf header-start (point))
-    (if (stringp header)
-        (insert header)
-      (funcall header))
+    (jss-funcall-or-insert header)
     (setf header-end (point))
     (setf body-start (point))
-    (if (stringp body)
-        (insert body)
-      (funcall body))
+    (jss-funcall-or-insert body)
     (setf body-end (point))
     (lexical-let ((body-overlay (make-overlay body-start body-end (current-buffer) t nil)))
       (jss-add-text-button header-start header-end
                            (lambda ()
                              (interactive)
                              (jss-toggle-text-visibility body-overlay)))
-      (overlay-put body-overlay 'invisible t)
-      (overlay-put body-overlay 'before-string "...\n"))))
+      (let ((inhibit-read-only t))
+        (overlay-put body-overlay 'invisible t)
+        (overlay-put body-overlay 'before-string "...\n")
+        (when initially-visibile
+          (jss-toggle-text-visibility body-overlay))))))
+
+(defun jss-toggle-text-visibility (body-overlay)
+  (interactive)
+  (jss-overlay-toggle-invisibile body-overlay)
+  (overlay-put body-overlay 'before-string
+               (when (overlay-get body-overlay 'invisible)
+                 "...\n")))
+
+(defun jss-overlay-toggle-invisibile (overlay)
+  (overlay-put overlay 'invisible (not (overlay-get overlay 'invisible))))
+
+(defun jss-toggling-sections (button-a body-a button-b body-b)
+  (lexical-let (button-a-overlay
+                body-a-overlay
+                button-b-overlay
+                body-b-overlay)
+    (cl-flet ((make-overlay-around (thing)
+                                   (let ((start (point)))
+                                     (jss-funcall-or-insert thing)
+                                     (make-overlay start (point) (current-buffer) t nil))))
+      
+      (setf button-a-overlay (make-overlay-around button-a)
+            button-b-overlay (make-overlay-around button-b)
+            body-a-overlay (make-overlay-around body-a)
+            body-b-overlay (make-overlay-around body-b))
+      
+      (overlay-put button-a-overlay 'invisible nil)
+      (overlay-put body-a-overlay   'invisible nil)
+      (overlay-put button-b-overlay 'invisible t)
+      (overlay-put body-b-overlay   'invisible t)
+
+      (lexical-let ((toggle-function (lambda ()
+                                       (interactive)
+                                       (jss-overlay-toggle-invisibile button-a-overlay)
+                                       (jss-overlay-toggle-invisibile button-b-overlay)
+                                       (jss-overlay-toggle-invisibile body-a-overlay)
+                                       (jss-overlay-toggle-invisibile body-b-overlay))))
+        
+        (jss-add-text-button (overlay-start button-a-overlay)
+                             (overlay-end button-a-overlay)
+                             toggle-function)
+
+        (jss-add-text-button (overlay-start button-b-overlay)
+                             (overlay-end button-b-overlay)
+                             toggle-function)))))
 
 (defun jss-toggle-text-visibility (body-overlay)
   (interactive)

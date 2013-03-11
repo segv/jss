@@ -23,37 +23,54 @@
 
   (jss-toggling-visibility
    (lambda ()
-     (insert "Request Headers: ")
-     (jss-insert-button "[view raw]" 'jss-toggle-request-headers-raw)
-     (insert "\n"))
+     (insert "Request Headers: "))
    (lambda ()
+     (insert "\n")
      (jss-wrap-with-text-properties `(jss-request-headers t)
-       (jss-io-insert-header-table (jss-io-request-headers jss-io) :indent 2))))
-    
-  (insert "Request Data: ") (jss-insert-button "[view raw]" 'jss-toggle-request-data-raw) (insert "\n")
+       (jss-toggling-sections
+        "[view raw]\n"
+        (lambda ()
+          (jss-wrap-with-text-properties (list 'jss-response-headers t)
+            (jss-io-insert-header-table (jss-io-request-headers jss-io) :indent 2)))
+        "[view parsed]\n"
+        (lambda ()
+          (insert (jss-io-raw-request-headers jss-io))
+          (insert "\n"))))))
+
+  (unless (string= "GET" (jss-io-request-method jss-io))
+    (insert "Request Data: ")
+    (insert "\n"))
   
   (when (jss-io-response-status jss-io)
     (jss-toggling-visibility
      (lambda ()
-       (insert "Response Headers: ") (jss-insert-button "[view raw]" 'jss-toggle-response-headers-raw) (insert "\n"))
+       (insert "Response Headers:"))
      (lambda ()
-       (jss-wrap-with-text-properties `(jss-response-headers t)
-         (jss-io-insert-header-table (jss-io-response-headers jss-io) :indent 2))))
+       (insert "\n")
+       (jss-toggling-sections
+        "[view raw]\n"
+        (lambda ()
+          (jss-wrap-with-text-properties (list 'jss-response-headers t)
+            (jss-io-insert-header-table (jss-io-response-headers jss-io) :indent 2)))
+        "[view parsed]\n"
+        (lambda ()
+          (insert (jss-io-raw-response-headers jss-io))
+          (insert "\n")))))
 
     (jss-toggling-visibility
      (lambda ()
        (insert "Response Data: ")
-       (jss-insert-button "[view raw] " 'jss-toggle-response-data-raw)
        (when (jss-io-response-content-type jss-io)
          (insert "type: " (jss-io-response-content-type jss-io)))
        (when (jss-io-response-content-length jss-io)
-         (insert "length: " (jss-io-response-content-length jss-io)))
-       (insert "\n"))
+         (insert "length: " (jss-io-response-content-length jss-io))))
      (lambda ()
+       (insert "\n")
        (let ((data (jss-io-response-data jss-io)))
          (if data
              (jss-io-insert-response-data jss-io)
-           (insert "no data."))))))
+           (insert "no data."))))
+     :initially-visibile t))
 
   (read-only-mode 1)
   (goto-char (point-min)))
@@ -97,14 +114,20 @@
 
 (defmethod jss-io-insert-response-data ((io jss-generic-io))
   (let* ((content-type (jss-io-response-content-type io))
-         (cleaner (gethash content-type jss-io-cleaners)))
-    (if cleaner
-        (let ((string (ignore-errors (funcall cleaner (jss-io-response-data io)))))
-          (if string
-              (insert string)
-            (insert "Error pretty printing:\n")
-            (insert (jss-io-response-data io))))
-      (insert "Unrecognized content type: " (or  content-type "---") "\n")
-      (insert (jss-io-response-data io)))))
+         (cleaner (gethash content-type jss-io-cleaners))
+         (response-data (jss-io-response-data io))
+         (string (ignore-errors
+                   (if cleaner
+                       (funcall cleaner response-data)
+                     nil))))
+    (if string
+        (jss-toggling-sections
+         "[view raw]"
+         (lambda ()
+           (insert "\n" string))
+         "[view parsed]"
+         (lambda ()
+           (insert response-data)))
+      (insert response-data))))
 
 (provide 'jss-io)
