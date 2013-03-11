@@ -51,7 +51,9 @@ and for chrome on macs it's:
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222
 #+END_EXAMPLE
 
-**** Mozilla (firefox)
+**** TODO Mozilla (firefox)
+
+NB: THIS DOES NOT YET WORK.
 
 In order to startup the debugger as a network server we have to run
 some javascript code in the browser, there's no simple command line
