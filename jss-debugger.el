@@ -51,7 +51,6 @@ the current frame's top line."
 
 (defvar jss-debugger-mode-map (make-sparse-keymap))
 
-(define-key jss-debugger-mode-map (kbd "t") 'jss-frame-toggle-visibility)
 (define-key jss-debugger-mode-map (kbd "n") 'jss-frame-next)
 (define-key jss-debugger-mode-map (kbd "p") 'jss-frame-previous)
 (define-key jss-debugger-mode-map (kbd "e") 'jss-frame-goto-exception)
@@ -194,12 +193,6 @@ of the debugger after this function returns."
               ;; no need to keep checking other conditions
               (return))))))))
 
-(defvar jss-frame-label-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map jss-debugger-mode-map)
-    (define-key map (kbd "c") 'jss-debugger-frame-goto-prompt))
-  "Keymap used when point is on a frame's label.")
-
 (defvar jss-debugger-prompt-map
   (let ((map (make-sparse-keymap)))
     (define-key map "C-c C-c" 'jss-frame-previous)
@@ -215,21 +208,22 @@ is the current number of the frame (assumed to be unique to each
 to each frame without a debugger buffer)."
   (lexical-let ((frame frame))
     (jss-wrap-with-text-properties (list 'jss-frame frame 'jss-frame-count count)
-      (jss-wrap-with-text-properties (list 'jss-frame-label t
-                                           'keymap jss-frame-label-map)
-        (insert (format "Frame %d: " count))
-        (jss-insert-with-highlighted-whitespace (jss-frame-function-name frame))
-        (insert "\n"))
-      (jss-wrap-with-text-properties (list 'invisible t)
-        (when (jss-frame-source-hint frame)
-          (jss-wrap-with-text-properties (list 'jss-frame-source-position t)
-            (insert "Source location: ")
-            (jss-insert-with-highlighted-whitespace (jss-frame-source-hint frame))
-            (insert "\n")))
-        (jss-insert-prompt (lambda (text)
-                             (jss-evaluate frame text))
-                           :local-map jss-debugger-prompt-map)
-        (jss-section-marker)))))
+      (jss-toggling-visibility
+       (lambda ()
+         (jss-wrap-with-text-properties (list 'jss-frame-label t)
+           (insert (format "Frame %d: " count))
+           (jss-insert-with-highlighted-whitespace (jss-frame-function-name frame))
+           (insert "\n")))
+       (lambda ()
+         (when (jss-frame-source-hint frame)
+           (jss-wrap-with-text-properties (list 'jss-frame-source-position t)
+             (insert "Source location: ")
+             (jss-insert-with-highlighted-whitespace (jss-frame-source-hint frame))
+             (insert "\n")))
+         (jss-insert-prompt (lambda (text)
+                              (jss-evaluate frame text))
+                            :local-map jss-debugger-prompt-map)
+         (jss-section-marker))))))
 
 (defmacro define-jss-debugger-step-function (name method)
   `(defun ,name ()
@@ -278,25 +272,6 @@ to each frame without a debugger buffer)."
   `(destructuring-bind (,frame ,@location-args)
        (jss-frame-parts-locations (point))
      ,@body))
-
-(defun jss-frame-hide ()
-  (interactive)
-  (with-frame-at-point (frame &key start end frame-label-start frame-label-end)
-    (let ((inhibit-read-only t))
-      (add-text-properties frame-label-end end (list 'invisible t)))))
-
-(defun jss-frame-show ()
-  (interactive)
-  (with-frame-at-point (frame &key start end frame-label-start frame-label-end)
-    (let ((inhibit-read-only t))
-      (remove-text-properties frame-label-end end (list 'invisible)))))
-
-(defun jss-frame-toggle-visibility ()
-  (interactive)
-  (with-frame-at-point (frame &key start end frame-label-start frame-label-end)
-    (if (get-text-property (1+ frame-label-end) 'invisible)
-        (jss-frame-show)
-      (jss-frame-hide))))
 
 (defun jss-frame-next ()
   "Move point to the next frame in the buffer."

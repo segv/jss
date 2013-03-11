@@ -268,25 +268,29 @@ chars."
         body-start
         body-end)
     (setf header-start (point))
-    (funcall header)
+    (if (stringp header)
+        (insert header)
+      (funcall header))
     (setf header-end (point))
     (setf body-start (point))
-    (funcall body)
+    (if (stringp body)
+        (insert body)
+      (funcall body))
     (setf body-end (point))
-    (lexical-let ((body-overlay (make-overlay body-start body-end))
-                  (header-overlay (make-overlay header-start header-end)))
+    (lexical-let ((body-overlay (make-overlay body-start body-end (current-buffer) t nil)))
+      (jss-add-text-button header-start header-end
+                           (lambda ()
+                             (interactive)
+                             (jss-toggle-text-visibility body-overlay)))
       (overlay-put body-overlay 'invisible t)
-      (overlay-put header-overlay
-                   'keymap
-                   (let ((map (make-sparse-keymap)))
-                     (define-key map (kbd "t")
-                       (lambda () (interactive)
-                         (overlay-put body-overlay 'invisible
-                                      (not (overlay-get body-overlay 'invisible)))
-                         (overlay-put body-overlay 'before-string
-                                      (when (overlay-get body-overlay 'invisible)
-                                        "...\n"))))
-                     map))
       (overlay-put body-overlay 'before-string "...\n"))))
+
+(defun jss-toggle-text-visibility (body-overlay)
+  (interactive)
+  (overlay-put body-overlay 'invisible
+               (not (overlay-get body-overlay 'invisible)))
+  (overlay-put body-overlay 'before-string
+               (when (overlay-get body-overlay 'invisible)
+                 "...\n")))
 
 (provide 'jss-text-manipulation)
