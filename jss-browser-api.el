@@ -1,8 +1,5 @@
 ;;; API (super classes and generic functions) for interacting with browsers, tabs, stacks, etc.
 
-(require 'cl)
-(require 'eieio)
-
 (defclass jss-generic-browser ()
   ((host :initarg :host :accessor jss-browser-host)
    (port :initarg :port :accessor jss-browser-port)

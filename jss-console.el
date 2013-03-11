@@ -1,6 +1,3 @@
-(require 'cl)
-(require 'eieio)
-(require 'jss-prompt)
 
 (define-derived-mode jss-console-mode jss-super-mode "JSS Console"
   "A jss console buffer serves two purposes:

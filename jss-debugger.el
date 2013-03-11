@@ -1,4 +1,3 @@
-(require 'jss-browser-api)
 
 (define-derived-mode jss-debugger-mode jss-super-mode "JSS Debugger"
   "The jss-debugger serves to signal exceptions, provide any

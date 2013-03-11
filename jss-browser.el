@@ -1,6 +1,3 @@
-(require 'cl)
-(require 'eieio)
-(require 'jss-browser-api)
 
 (define-derived-mode jss-browser-mode jss-super-mode "JSS Browser"
   "This is mode used by buffers created with jss-connect. It serves,

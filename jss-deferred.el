@@ -1,4 +1,3 @@
-(require 'eieio)
 
 (defclass jss-deferred ()
   ((callbacks :initarg :callbacks :accessor jss-deferred-callbacks)

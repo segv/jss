@@ -1,4 +1,3 @@
-(require 'jss-browser-api)
 
 (make-variable-buffer-local
  (defvar jss-current-io-object))

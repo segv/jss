@@ -5,8 +5,6 @@
 ;;;  { "to":"root", "type":"listTabs" }
 ;;; ->  { "from":"root", "tabs":[tab, ...], "selected":selected }
 
-(require 'jss-browser-api)
-
 (defclass jss-firefox-browser (jss-generic-browser)
   ((connection :accessor jss-firefox-browser-connection :initform nil)))
 

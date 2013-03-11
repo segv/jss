@@ -2,10 +2,6 @@
 ;;; http://trac.webkit.org/browser/trunk/Source/WebCore/inspector/Inspector.json
 (require 'url)
 (require 'websocket)
-(require 'json)
-
-(require 'jss-browser-api)
-(require 'jss-deferred)
 
 ;;; The browser API implementation
 
