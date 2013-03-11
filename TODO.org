@@ -42,10 +42,16 @@ the auto-resume function jss-is-3rd-party-exception when we start from
 an empty tab and then go to our site and we think all our own code is
 3rd party :(
 
-* TODO report timint information in the IO buffer
+* TODO report timing information in the IO buffer
 we already get a lot of into about when the requested started, how
 long we waited, how long it ttok to reiceve, etc. about a specific
 network IO. might as well display this info in the IO buffer.
 * TODO don't store tab-ids in text properties, store the tab objects themselves.
 We don't gain anything by having the level of indirection, and it's
 more code to implement in the api.
+* TODO implement real 'toogling' of Network.monitor
+
+the jss-generic-browser object should keep track of the state of the
+network monitor (assuming it can't ask the browser about it) and
+provide a command to enable if it's curretly disabled or disable if
+it's current enabled.
