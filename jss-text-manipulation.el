@@ -97,8 +97,7 @@ from `start` to `end`."
   "Face user to mark significant whitespace.")
 
 (defun jss-insert-as-whitespace (string)
-  (jss-wrap-with-text-properties (list 'face jss-whitespace-mark-face
-                                       'font-lock-face jss-whitespace-mark-face)
+  (jss-wrap-with-text-properties (list 'face 'jss-whitespace-mark-face)
     (insert-and-inherit string)))
 
 (defun jss-eol-mark ()
