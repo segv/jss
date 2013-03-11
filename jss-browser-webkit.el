@@ -659,7 +659,15 @@
    (responseBody :accessor jss-webkit-io-responseBody :initform nil)))
 
 (defmethod jss-io-request-headers ((io jss-webkit-io))
-  (cdr (assoc 'headers (cdr (assoc 'request (jss-webkit-io-properties io))))))
+  (if (assoc 'redirectResponse (jss-webkit-io-properties io))
+      (cdr (assoc 'headers (cdr (assoc 'redirectResponse (jss-webkit-io-properties io)))))
+    (or (cdr (assoc 'requestHeaders (jss-webkit-io-response io)))
+        (cdr (assoc 'headers (cdr (assoc 'request (jss-webkit-io-properties io)))))
+        "--")))
+
+(defmethod jss-io-raw-request-headers ((io jss-webkit-io))
+  (or (cdr (assoc 'requestHeadersText (jss-webkit-io-response io)))
+      "--"))
 
 (defmethod jss-io-request-method ((io jss-webkit-io))
   (cdr (assoc 'method (cdr (assoc 'request (jss-webkit-io-properties io))))))
@@ -667,10 +675,19 @@
 (defmethod jss-io-request-url ((io jss-webkit-io))
   (cdr (assoc 'url (cdr (assoc 'request (jss-webkit-io-properties io))))))
 
+(defmethod jss-io-id ((io jss-webkit-io))
+  (cdr (assoc 'requestId (jss-webkit-io-properties io))))
+
 (defmethod jss-io-response-headers ((io jss-webkit-io))
   (if (assoc 'redirectResponse (jss-webkit-io-properties io))
       (cdr (assoc 'headers (cdr (assoc 'redirectResponse (jss-webkit-io-properties io)))))
       (cdr (assoc 'headers (jss-webkit-io-response io)))))
+
+(defmethod jss-io-raw-response-headers ((io jss-webkit-io))
+  (if (assoc 'redirectResponse (jss-webkit-io-properties io))
+      (cdr (assoc 'headersText (cdr (assoc 'redirectResponse (jss-webkit-io-properties io)))))
+    (or (cdr (assoc 'headersText (jss-webkit-io-response io)))
+        "--")))
 
 (defmethod jss-io-response-content-type ((io jss-webkit-io))
   (cdr (assoc 'mimeType (jss-webkit-io-response io))))
@@ -695,9 +712,6 @@
     (format "%s %s"
             (cdr (assoc 'status response))
             (cdr (assoc 'statusText response)))))
-
-(defmethod jss-io-id ((io jss-webkit-io))
-  (cdr (assoc 'requestId (jss-webkit-io-properties io))))
 
 (define-jss-webkit-notification-handler "Network.requestWillBeSent" (requestId loaderId documentURL request timestamp initiator stackTrace redirectResponse)
   (let ((io (make-instance 'jss-webkit-io
