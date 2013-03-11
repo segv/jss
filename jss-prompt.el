@@ -72,7 +72,9 @@ implemented)."
         (setf (jss-prompt-marker-overlay prompt) (make-overlay marker-start (point) (current-buffer) t)))
       
       (let ((input-start (point)))
-        (jss-wrap-with-text-properties (list 'jss-prompt-input-end-marker t)
+        (jss-wrap-with-text-properties (list 'jss-prompt-input-end-marker t
+                                             'read-only t
+                                             'rear-nonsticky t)
           (insert "\n"))
         (setf (jss-prompt-input-overlay prompt) (make-overlay input-start (point)))
         (overlay-put (jss-prompt-input-overlay prompt) 'face 'highlight)
