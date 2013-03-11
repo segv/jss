@@ -82,8 +82,9 @@ expand objects while moving around the buffer."
     (jss-tab-ensure-console tab))))
 
 (defmethod jss-tab-ensure-console ((tab jss-generic-tab))
-  "If `tab` doesn#t already have a console buffer, the create,
-otherwise return it (in either case don't switch to it)"
+  "If `tab` doesn't already have a console object, then create it (and initialize its buffer).
+
+Either way, returns `tabs`'s console."
   (or (jss-tab-console tab)
       (let ((console (jss-tab-make-console tab :tab tab)))
         (setf (jss-tab-console tab) console)
@@ -92,9 +93,9 @@ otherwise return it (in either case don't switch to it)"
         console)))
 
 (defun jss-console-ensure-connection ()
-  "Return a deferred which will connect the the current tab's
-console, if we are not conected to the curent tab then connect to
-it."
+  "Return a deferred which will complete when the connection to
+the current tab's console has been established (this may happen
+immediately if the connection already exsits)."
   (interactive)
   (unless (jss-current-console)
     (error "No current console object. Can't open console here."))
@@ -153,7 +154,7 @@ any necessary cleanup."
           " // "))
 
 (defmethod jss-console-format-message ((console jss-generic-console) level format-string &rest format-args-and-properties)
-  "Insert a message, ser the face correspoding to `level` in the
+  "Insert a message, of the face correspoding to `level`, in the
 current buffer (which must be a console buffer). `format-string`
 and `format-args-and-properties` are passed to `format` to
 compute the text to be inserted.
@@ -186,6 +187,10 @@ inserted text."
           (add-text-properties start (point) properties))))))
 
 (defmethod jss-console-insert-message-objects ((console jss-generic-console) level objects)
+  "Given a list of remote objects, such as those passed to jss by
+the browser when code calls window.console.log, insert the
+corresponding remote-value objects into the current buffer using
+the face and label corresponding to `level`."
   (save-excursion
     (with-current-buffer (jss-console-buffer console)
       (let ((inhibit-read-only t))
@@ -224,6 +229,7 @@ buffer) describing the current state of `io`."
           (insert "\n"))))))
 
 (defmethod jss-console-insert-request ((console jss-generic-console) io)
+  "Insert a line in the buffer describing IO (and this should be the first time we've gotten an event related to IO."
   (jss-console-insert-io-line console io))
 
 (defmethod jss-console-update-request-message ((console jss-generic-console) io)

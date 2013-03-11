@@ -371,7 +371,7 @@ jss-remote-value-description.")
 
 (defclass jss-generic-remote-primitive (jss-generic-remote-value)
   ((value :initarg :value :accessor jss-remote-primitive-value))
-  (:documentation "A primitive, and non divisible, remote object."))
+  (:documentation "A primitive, non divisible, remote object."))
 
 (defclass jss-generic-remote-boolean (jss-generic-remote-primitive) ())
 

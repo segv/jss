@@ -61,6 +61,11 @@ cause some buffer flicker due to the asynchronous-ness of it.")
            (jss-remote-value-replace-with-properties object properties buffer)))))))
 
 (defmacro* jss-replace-with-default-property ((property-name property-value &key (test 'eq)) &body body)
+  "Find the block in the current buffer with the text-property
+`property-name` whose value is `property-value`, delete this
+block, move point to where the block was, run `body` and then add
+the text property `property-name` with value `property-value`
+back (from the old start to where `body` left point)"
   (declare (indent 1))
   (let ((loc (gensym)) (prop-val (gensym)))
     `(let* ((,prop-val ,property-value)
@@ -96,12 +101,15 @@ cause some buffer flicker due to the asynchronous-ness of it.")
             (return)))))))
 
 (defmethod jss-remote-value-collapsed ((value jss-generic-remote-object))
+  "Returns T if `value` is current collapsed."
   (let ((loc (jss-find-property-block 'jss-remote-value value)))
     (save-excursion
       (goto-char (car loc))
       (get-text-property (point) 'jss-remote-value-collapsed))))
 
 (defmethod jss-remote-value-expand ((value jss-generic-remote-object))
+  "Inserts the properties of `value` into the current buffer (and
+sets `value` as non-collapsed)."
   (when (jss-remote-value-collapsed value)
 
     (jss-replace-with-default-property
@@ -120,6 +128,10 @@ cause some buffer flicker due to the asynchronous-ness of it.")
          (jss-remote-value-replace-with-properties value properties buffer))))))
 
 (defun jss-remote-value-insert-as-object-properties (alist separator identp)
+  "Insert the list of properties `alist` into the current buffer
+and put `separator` between each name/value pair. If `identp` is
+non-NIL then ident each line before inserting the key (each key,
+value pair goes on the same line)"
   (loop for first = t then nil
         for (prop . more) on alist
         when identp
@@ -131,6 +143,8 @@ cause some buffer flicker due to the asynchronous-ness of it.")
         do (insert separator)))
 
 (defmethod jss-remote-value-replace-with-properties ((value jss-generic-remote-object) properties buffer)
+  "Delete the current representation of `value` and put its
+properties in its place."
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
       (when (jss-remote-value-collapsed value) 
@@ -176,6 +190,7 @@ cause some buffer flicker due to the asynchronous-ness of it.")
          (jss-remote-value-replace-with-properties value properties buffer))))))
 
 (defmethod jss-remote-value-replace-with-properties ((value jss-generic-remote-array) properties buffer)
+  "Replace the array `value` with its elements."
   (let ((integer-properties '())
         (other-properties '()))
     (dolist (prop properties)
@@ -197,6 +212,7 @@ cause some buffer flicker due to the asynchronous-ness of it.")
         (insert "}")))))
 
 (defun jss-remote-value-expand-at-point ()
+  "Expand the remote value currently at point."
   (interactive)
   (let ((value (get-text-property (point) 'jss-remote-value)))
     (unless value
@@ -204,6 +220,7 @@ cause some buffer flicker due to the asynchronous-ness of it.")
     (jss-remote-value-expand value)))
 
 (defun jss-expand-nearest-remote-value ()
+  "Find the closes remote value to point and expand it."
   (interactive)
   (let ((nearest-before nil)
         (nearest-before-distance 0)

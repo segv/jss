@@ -47,6 +47,8 @@ possible since its value has alreay been computed."
   `(setf ,place (append ,place ,@elements)))
 
 (defun jss-deferred-funcall (back value)
+  "Trivial wrapper around funcall so that we can, when
+neccessary, add extra error handling to a deferred's callback."
   (funcall back value)
   ;(condition-case e
   ;    (funcall back value)
@@ -54,11 +56,13 @@ possible since its value has alreay been computed."
   )
 
 (defmethod jss-deferred-add-callback ((d jss-deferred) callback)
+  "Add a function to be called when `d` completes."
   (if (eql :ok (car (jss-deferred-state d)))
       (jss-deferred-funcall callback (cdr (jss-deferred-state d)))
     (appendf (jss-deferred-callbacks d) (list callback))))
 
 (defmethod jss-deferred-add-errorback ((d jss-deferred) errorback)
+  "Add a function to be called when `d` fails."
   (if (eql :fail (car (jss-deferred-state d)))
       (jss-deferred-funcall errorback (cdr (jss-deferred-state d)))
     (appendf (jss-deferred-errorbacks d) (list errorback))))
@@ -70,14 +74,16 @@ possible since its value has alreay been computed."
   d)
 
 (defmethod jss-deferred-callback ((d jss-deferred) value)
-  "Successffully compete the deferred `d`."
+  "Successffully compete the deferred `d` with value
+`value`. Will immediatly call all of `d`'s callbacks."
   (while (jss-deferred-callbacks d)
     (jss-deferred-funcall (pop (jss-deferred-callbacks d)) value))
   (setf (jss-deferred-state d) (cons :ok value))
   value)
 
 (defmethod jss-deferred-errorback ((d jss-deferred) value)
-  "Unsuccessfully complete the deferred `d`."
+  "Unsuccessfully complete the deferred `d` with value
+`value`. Will immediatly call all of `d`'s errorbacks."
   (while (jss-deferred-errorbacks d)
     (jss-deferred-funcall (pop (jss-deferred-errorbacks d)) value))
   (setf (jss-deferred-state d) (cons :fail value))

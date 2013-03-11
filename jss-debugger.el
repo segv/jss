@@ -69,6 +69,9 @@ the current frame's top line."
 (defvar jss-debugger-resume-points '())
 
 (defun jss-debugger-set-resume-point-here ()
+  "Records the source location of the top frame of the current
+debugger in the jss-debugger-resume-points global variable (so
+that jss-debugger-resume-point can test for it)"
   (interactive)
   
   (block nil
@@ -87,10 +90,14 @@ the current frame's top line."
              (unless script
                (warn "No script location for top frame of debugger.")
                (return))
+             (unless (and line column)
+               (warn "No line or column info for top frame of debugger."))
              (let ((url (jss-script-url script)))
                (unless url
                  (warn "No url for script of top frame of debugger.")
-                 (return))))))))))
+                 (return))
+               (pushnew (list url line column) jss-debugger-resume-points
+                        :test 'equal)))))))))
 
 ;;; TODO: jss-debugger-resume-points (the opposite of breakpoints)
 
@@ -102,6 +109,9 @@ the current frame's top line."
 ;(pushnew 'jss-is-3rd-party-exception jss-ignorable-exception-functions)
 
 (defun jss-with-first-stack-frame-url (jss-debugger thunk)
+  "Calls thunk passing in the url of the top frame in
+jss-debugger (when/if we get that information from the serevr and
+the url is a real url)."
   (lexical-let ((thunk thunk)
                 (jss-debugger jss-debugger))
     (let ((frames (jss-debugger-stack-frames jss-debugger)))
@@ -117,6 +127,8 @@ the current frame's top line."
         (warn "No first stack frame.")))))
 
 (defun jss-is-jquery-exception (jss-debugger)
+  "Tests if the url of the topmost frame of jss-debugger is a
+version of jquery."
   (jss-with-first-stack-frame-url
    jss-debugger
    (lambda (url debugger)
@@ -126,6 +138,8 @@ the current frame's top line."
          nil)))))
 
 (defun jss-is-3rd-party-exception (jss-debugger)
+  "Tests if the url of the topmost frame of jss-debugger is on a
+different host that the current tab."
   (jss-with-first-stack-frame-url
    jss-debugger
    (lambda (script-url debugger)
@@ -183,14 +197,22 @@ of the debugger after this function returns."
 (defvar jss-frame-label-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map jss-debugger-mode-map)
-    (define-key map (kbd "c") 'jss-debugger-frame-goto-prompt)))
+    (define-key map (kbd "c") 'jss-debugger-frame-goto-prompt))
+  "Keymap used when point is on a frame's label.")
 
 (defvar jss-debugger-prompt-map
   (let ((map (make-sparse-keymap)))
     (define-key map "C-c C-c" 'jss-frame-previous)
-    map))
+    map)
+  "Extra keymap used when point is inside a prompt within a
+jss-debugger buffer. Just provides an simple shortcut to jump out
+of the prompt and back to the current frame's label (where the
+normal debugger navigation commands are available).")
 
 (defmethod jss-debugger-insert-frame ((frame jss-generic-stack-frame) count)
+  "Inserts the data and overlays and keymaps for `frame`. `count`
+is the current number of the frame (assumed to be unique to each
+to each frame without a debugger buffer)."
   (lexical-let ((frame frame))
     (jss-wrap-with-text-properties (list 'jss-frame frame 'jss-frame-count count)
       (jss-wrap-with-text-properties (list 'jss-frame-label t
@@ -226,6 +248,7 @@ of the debugger after this function returns."
 (define-jss-debugger-step-function jss-debugger-stepper-step-out  jss-debugger-step-out)
 
 (defun jss-frame-goto-source ()
+  "Open up a JSS Script buffer containing the source code for the current frame."
   (interactive)
   (let ((frame (get-text-property (point) 'jss-frame)))
     (unless frame (error "No frame at point."))
@@ -276,6 +299,7 @@ of the debugger after this function returns."
       (jss-frame-hide))))
 
 (defun jss-frame-next ()
+  "Move point to the next frame in the buffer."
   (interactive)
   (let* ((current-count (get-text-property (point) 'jss-frame-count))
          (next-id (if current-count
@@ -284,6 +308,7 @@ of the debugger after this function returns."
     (goto-char (car (jss-find-property-block 'jss-frame-count next-id)))))
 
 (defun jss-frame-previous ()
+  "Move point to the previous frame in the buffer."
   (interactive)
   (let* ((current-count (get-text-property (point) 'jss-frame-count))
          (next-id (if current-count

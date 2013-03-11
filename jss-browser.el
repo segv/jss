@@ -3,8 +3,8 @@
   "This is mode used by buffers created with jss-connect. It serves,
 mainly, to list the tabs in the browser that can be debugged.
 
-The first specifies the backend, `webkit` or `firefox` used to
-communicate with the browser and the host and port we're
+The first line specifies the backend, `webkit` or `firefox` used
+to communicate with the browser and the host and port we're
 currently connected to (or trying to connect to).
 
 For each tab we list the currently visited url and provide a
@@ -25,6 +25,11 @@ manually running jss-browser-mode-refresh (usually bound to
   (jss-browser-mode-refresh))
 
 (defun jss-browser-mode* (browser)
+  "Change to jss-browser-mode using the browser object `browser`.
+
+This is a simple wrapper around jss-browser-mode since that
+function is defined by define-derived-mode to not take any
+arguments."
   (let ((jss-browser browser))
     (jss-browser-mode)))
 
@@ -37,6 +42,8 @@ manually running jss-browser-mode-refresh (usually bound to
   jss-current-browser-instance)
 
 (defun jss-browser-delete-and-insert-header ()
+  "Clear the contents of the current buffer and insert the
+browser description line (usually backend type, host and port)."
   (widen)
   (delete-region (point-min) (point-max))
   (insert (jss-browser-description (jss-current-browser)) "\n\n"))
@@ -96,7 +103,7 @@ applicable)."
            (signal (first error) (rest error) )))))))
 
 (defun jss-browser-insert-help-topics ()
-  "Insert a list fo links to the documentation for jss's main
+  "Insert a list of links to the documentation for jss's main
 modes."
   (insert "\n\n")
   (insert "JSS Help:\n")
@@ -116,7 +123,10 @@ modes."
   ((label         :accessor jss-browser-spec-label :initarg :label)
    (browser-class :accessor jss-browser-spec-class :initarg :class)
    (default-host  :accessor jss-browser-spec-default-host :initarg :default-host :initform "127.0.0.1")
-   (default-port  :accessor jss-browser-spec-default-port :initarg :default-port)))
+   (default-port  :accessor jss-browser-spec-default-port :initarg :default-port))
+  (:documentation "Represents the different kinds of backend we
+can connect to, what they're called, what class of jss-browser
+objects they need, and the default connection parameters."))
 
 (defcustom jss-browsers
   (list (make-instance 'jss-browser-connection-details
