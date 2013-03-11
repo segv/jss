@@ -226,6 +226,12 @@ been closed.")
   (:documentation "An object that describes a single
 request/response between the browser and a server."))
 
+(defgeneric jss-io-request-method (io)
+  "Returns the HTTP request method (a string) used by`io`.")
+
+(defgeneric jss-io-request-url (io)
+  "The url requested by `io`.")
+
 (defgeneric jss-io-id (io)
   "Returns a globally unique id identifying `io`.")
 
@@ -233,15 +239,17 @@ request/response between the browser and a server."))
   "Returns the HTTP request headers sent by `io` as an alist
 whose keys and values are strings.")
 
+(defgeneric jss-io-raw-request-headers (io)
+  "Returns the HTTP request headers sent by `io` as a
+string (really a sequence of bytes)")
+
 (defgeneric jss-io-response-headers (io)
   "Returns the HTTP response headers sent by `io` as an alist
 whose keys and values are strings.")
 
-(defgeneric jss-io-request-method (io)
-  "Returns the HTTP request method (a string) used by`io`.")
-
-(defgeneric jss-io-request-url (io)
-  "The url requested by `io`.")
+(defgeneric jss-io-raw-response-headers (io)
+  "Returns the HTTP response headers sent by `io` as a string (a
+sequence of bytes)")
 
 (defgeneric jss-io-response-status (io)
   "Either an integer specifying the status code or nil specifying
