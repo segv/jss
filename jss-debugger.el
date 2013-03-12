@@ -241,15 +241,20 @@ to each frame without a debugger buffer)."
 (define-jss-debugger-step-function jss-debugger-stepper-step-over jss-debugger-step-over)
 (define-jss-debugger-step-function jss-debugger-stepper-step-out  jss-debugger-step-out)
 
-(defun jss-frame-goto-source ()
-  "Open up a JSS Script buffer containing the source code for the current frame."
-  (interactive)
+(defun jss-frame-goto-source (force-server-side-js)
+  "Open up a JSS Script buffer containing the source code for the current frame.
+
+force-server-side-js will be passed to
+jss-script-display-at-position (where it controls whether or not
+we want to look for the local file containg the, editable, source
+code."
+  (interactive "P")
   (let ((frame (get-text-property (point) 'jss-frame)))
     (unless frame (error "No frame at point."))
     (jss-deferred-add-backs
      (jss-frame-get-source-location frame)
      (lambda (location)
-       (apply 'jss-script-display-at-position location)))))
+       (apply 'jss-script-display-at-position (append location (list :force-server-side-js force-server-side-js)))))))
 
 (defun jss-frame-parts-locations (point)
   (let ((frame (get-text-property (point) 'jss-frame)))

@@ -2,7 +2,11 @@
   "A list of functions which, given a url, a line number and a
 column number, return a file name, that emacs can find-file on,
 which should be opened instead of a *JSS Script* buffer
-containing the server's script contents.")
+containing the server's script contents.
+
+Note: If jss finds a match it will open up the specified file but
+will not check that the contents of the file match the code the
+server has actually parsed and executed.")
 
 (defun jss-script-prefix-match-source-location (prefix-url file-name-prefix)
   "Creates a function which well return a file-name that starts
@@ -61,23 +65,24 @@ jss-script-source-original-location-functions."
   (interactive)
   (setf (jss-script-buffer jss-current-script) nil))
 
-(defmethod jss-script-display-at-position ((script jss-generic-script) line-number column-number)
+(defmethod jss-script-display-at-position ((script jss-generic-script) line-number column-number &key force-server-side-js)
   (block found-buffer
     (when (and (jss-script-buffer script)
                (buffer-live-p (jss-script-buffer script)))
       (return-from found-buffer
        (jss-script-goto-offset script line-number column-number)))
 
-    (loop
-     for source-location-function in jss-script-source-original-location-functions
-     for original-source = (funcall source-location-function
-                                    (jss-script-url script)
-                                    line-number
-                                    column-number)
-     when original-source
+    (unless force-server-side-js
+      (loop
+       for source-location-function in jss-script-source-original-location-functions
+       for original-source = (funcall source-location-function
+                                      (jss-script-url script)
+                                      line-number
+                                      column-number)
+       when original-source
        do (setf (jss-script-buffer script) (find-file original-source))
        and do (return-from found-buffer
-                (jss-script-goto-offset script line-number column-number)))
+                (jss-script-goto-offset script line-number column-number))))
 
     (lexical-let ((script script)
                   (line-number line-number)
