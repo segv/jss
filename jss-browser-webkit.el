@@ -348,13 +348,22 @@
                                                      (or line-number 0)
                                                      (or column-number 0)))))))
 (defmethod jss-frame-restart ((f jss-webkit-stack-frame))
-  (jss-deferred-then
-   (jss-webkit-send-request (jss-debugger-tab d)
-                            (list "Debugger.restartFrame" (cons 'callFrameId (jss-webkit-stack-frame-id f))))
-   (lambda (response)
-     ;; not sure what to do here
-     )))
-
+  (lexical-let ((restart (make-jss-deferred))
+                (frame f))
+    (jss-deferred-then
+     (jss-webkit-send-request (jss-debugger-tab (jss-frame-debugger frame))
+                              (list "Debugger.restartFrame" (cons 'callFrameId (jss-webkit-stack-frame-id frame))))
+     (lambda (response)
+       (let ((result (cdr (assoc 'result response))))
+         (if (cdr (assoc 'stack_update_needs_step_in result))
+             (jss-deferred-then
+              (jss-debugger-step-into (jss-frame-debugger frame))
+              (lambda (response)
+                (jss-deferred-callback restart t)))
+           (jss-deferred-errorback restart (list "Unknown result: %s" result)))))
+     (lambda (response)
+       (jss-deferred-errorback restart (list "Bad response from restart frame: %s" response))))
+    restart))
 
 (define-jss-webkit-notification-handler "Debugger.breakpointResolved" (breakpointId location)
   t)

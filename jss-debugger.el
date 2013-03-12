@@ -56,6 +56,8 @@ the current frame's top line."
 (define-key jss-debugger-mode-map (kbd "e") 'jss-frame-goto-exception)
 (define-key jss-debugger-mode-map (kbd "s") 'jss-frame-goto-source)
 
+(define-key jss-debugger-mode-map (kbd "g") 'jss-debugger-stepper-frame-restart)
+
 (define-key jss-debugger-mode-map (kbd "r") 'jss-debugger-stepper-resume)
 (define-key jss-debugger-mode-map (kbd "q") 'jss-debugger-stepper-resume)
 (define-key jss-debugger-mode-map (kbd "i") 'jss-debugger-stepper-step-into)
@@ -302,6 +304,19 @@ code."
   (interactive)
   (goto-char
    (car (jss-find-property-block 'jss-debugger-exception t :test 'eq))))
+
+(defun jss-debugger-stepper-frame-restart ()
+  (interactive)
+  (lexical-let ((frame (get-text-property (point) 'jss-frame))
+                (current-buffer (current-buffer)))
+    (unless frame
+      (error "No frame at point."))
+    (jss-deferred-then
+     (jss-frame-restart frame)
+     (lambda (result)
+       (with-current-buffer current-buffer
+         (message "Killing debugger buffer.")
+         (jss-debugger-kill))))))
 
 (defun jss-debugger-kill ()
   (interactive)

@@ -59,13 +59,15 @@ neccessary, add extra error handling to a deferred's callback."
   "Add a function to be called when `d` completes."
   (if (eql :ok (car (jss-deferred-state d)))
       (jss-deferred-funcall callback (cdr (jss-deferred-state d)))
-    (appendf (jss-deferred-callbacks d) (list callback))))
+    (appendf (jss-deferred-callbacks d) (list callback)))
+  d)
 
 (defmethod jss-deferred-add-errorback ((d jss-deferred) errorback)
   "Add a function to be called when `d` fails."
   (if (eql :fail (car (jss-deferred-state d)))
       (jss-deferred-funcall errorback (cdr (jss-deferred-state d)))
-    (appendf (jss-deferred-errorbacks d) (list errorback))))
+    (appendf (jss-deferred-errorbacks d) (list errorback)))
+  d)
 
 (defmethod jss-deferred-add-backs ((d jss-deferred) &optional callback errorback)
   (lexical-let ((new-deferred (make-jss-deferred)))
