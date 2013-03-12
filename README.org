@@ -7,11 +7,21 @@
    browser itself is the middle man or proxy). This means that any
    page can be debugged without having to change the page itself.
 
-1. Implements 'resume points' to automatically skip exceptions in code
-   we don't control or aren't interested in debugging (i'm looking at
-   you jquery).
+1. Has debugger buffers with exceptions and per call-frame code
+   evaluation and source code navigation.
 
-1. It's emacs.
+1. Implements 'resume points' to automatically skip exceptions in code
+   we don't control or aren't interested in debugging.
+
+1. Quickly see the raw http request/response headers sent over the
+   network.
+
+1. Customizable pretty printing of server responses (currently has
+   syntax highlighting for html, css and js, and parsing/reindenting
+   of json data)
+
+1. Since its emacs the debugger and your editing environment are the
+   same.
 
 ** Installation
 
