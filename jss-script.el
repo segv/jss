@@ -65,7 +65,7 @@ jss-script-source-original-location-functions."
   (interactive)
   (setf (jss-script-buffer jss-current-script) nil))
 
-(defmethod jss-script-display-at-position ((script jss-generic-script) line-number column-number &key force-server-side-js)
+(defmethod jss-script-display-at-position ((script jss-generic-script) line-number column-number &optional force-server-side-js)
   (block found-buffer
     (when (and (jss-script-buffer script)
                (buffer-live-p (jss-script-buffer script)))

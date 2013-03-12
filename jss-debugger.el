@@ -256,7 +256,7 @@ code."
     (jss-deferred-add-backs
      (jss-frame-get-source-location frame)
      (lambda (location)
-       (apply 'jss-script-display-at-position (append location (list :force-server-side-js force-server-side-js)))))))
+       (apply 'jss-script-display-at-position (append location (list force-server-side-js)))))))
 
 (defun jss-frame-parts-locations (point)
   (let ((frame (get-text-property (point) 'jss-frame)))
