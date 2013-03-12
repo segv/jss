@@ -1,3 +1,52 @@
+(defvar jss-script-source-original-location-functions '()
+  "A list of functions which, given a url, a line number and a
+column number, return a file name, that emacs can find-file on,
+which should be opened instead of a *JSS Script* buffer
+containing the server's script contents.")
+
+(defun jss-script-prefix-match-source-location (prefix-url file-name-prefix)
+  "Creates a function which well return a file-name that starts
+with file-name-prefix if the passed in script url starts with
+prefix-url.
+
+If prefix-url specifies a schema (http or https) then it must
+match the script's schema. the query args, fragment, user and
+password values of prefix-url are ignored.
+
+Note: prefix-url will be parse by `url-generic-parse-url`, if you
+don't care about the schema use \"//example.com\", not simply
+\"example.com\".
+
+The value returned by this function is not intended to be used
+directly, it should instead be put in the list
+jss-script-source-original-location-functions."
+  (lexical-let ((prefix-url prefix-url)
+                (file-name-prefix file-name-prefix))
+    (lambda (script-url line-number column-number)
+      (message "Testing %s against %s." script-url prefix-url)
+      (block nil
+        (let ((prefix (url-generic-parse-url prefix-url))
+              (script (url-generic-parse-url script-url)))
+          (unless prefix (return nil))
+          (unless script (return nil))
+          (cl-flet ((url-part-match (part)
+                                    (when (funcall part prefix)
+                                      (unless (and (funcall part script)
+                                                   (equal (funcall part script) (funcall part prefix)))
+                                        (return nil)))))
+
+            (url-part-match 'url-type)
+            (url-part-match 'url-host)
+            (url-part-match 'url-port)
+            
+            (when (string-prefix-p (car (url-path-and-query prefix))
+                                   (car (url-path-and-query script)))
+              (let ((file-name
+                     (concat file-name-prefix (substring (car (url-path-and-query script))
+                                                         (length (car (url-path-and-query prefix)))))))
+                (message "File name: %s" file-name)
+                (return file-name)))))))))
+
 (defun jss-script-mode* (script)
   (let ((jss-script script))
     (add-hook 'kill-buffer-hook 'jss-script-kill nil t)
@@ -13,19 +62,35 @@
   (setf (jss-script-buffer jss-current-script) nil))
 
 (defmethod jss-script-display-at-position ((script jss-generic-script) line-number column-number)
-  (if (jss-script-buffer script)
-      (jss-script-goto-offset script line-number column-number)
+  (block found-buffer
+    (when (and (jss-script-buffer script)
+               (buffer-live-p (jss-script-buffer script)))
+      (return-from found-buffer
+       (jss-script-goto-offset script line-number column-number)))
+
+    (loop
+     for source-location-function in jss-script-source-original-location-functions
+     for original-source = (funcall source-location-function
+                                    (jss-script-url script)
+                                    line-number
+                                    column-number)
+     when original-source
+       do (setf (jss-script-buffer script) (find-file original-source))
+       and do (return-from found-buffer
+                (jss-script-goto-offset script line-number column-number)))
+
     (lexical-let ((script script)
                   (line-number line-number)
                   (column-number column-number))
-      (jss-deferred-then
-       (jss-script-get-body script)
-       (lambda (body)
-         (setf (jss-script-buffer script) (generate-new-buffer (format "*JSS Script %s (%s)*" (jss-script-url script) (jss-script-id script)))
-               (jss-script-body script) body)
-         (with-current-buffer (jss-script-buffer script)
-           (jss-script-mode* script)
-           (jss-script-goto-offset script line-number column-number)))))))
+      (return-from found-buffer
+        (jss-deferred-then
+         (jss-script-get-body script)
+         (lambda (body)
+           (setf (jss-script-buffer script) (generate-new-buffer (format "*JSS Script %s (%s)*" (jss-script-url script) (jss-script-id script)))
+                 (jss-script-body script) body)
+           (with-current-buffer (jss-script-buffer script)
+             (jss-script-mode* script)
+             (jss-script-goto-offset script line-number column-number))))))))
 
 (defface jss-script-line-marker-face '((t :inherit highlight))
   "Face used to highlight the area around point.")
