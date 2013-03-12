@@ -101,7 +101,6 @@ jss-script-source-original-location-functions."
   (with-current-buffer (jss-script-buffer script)
     (let ((inhibit-read-only t))
       (goto-char (point-min))
-      (remove-text-properties (point-min) (point-max) 'jss-script-offset-marker)
       (dolist (o (overlays-in (point-min) (point-max)))
         (delete-overlay o))
       (forward-line line-number)
