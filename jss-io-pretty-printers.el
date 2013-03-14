@@ -25,7 +25,9 @@
   (jss-io-fontify-data-with-mode css 'css-mode))
 
 (define-jss-io-cleaner ("application/javascript" "text/javascript") (js)
-  (jss-io-fontify-data-with-mode js 'js2-mode))
+  (jss-io-fontify-data-with-mode js (if (fboundp 'js2-mode)
+                                        'js2-mode
+                                      'js-mode)))
 
 (define-jss-io-cleaner ("application/json") (json)
   (let (parsed)

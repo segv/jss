@@ -7,7 +7,7 @@
 (define-key jss-super-mode-map (kbd "<S-tab>") 'jss-previous-button)
 
 (require 'easymenu)
-(require 'js2-mode)
+;(require 'js2-mode)
 (require 'cl)
 (require 'eieio)
 (require 'json)

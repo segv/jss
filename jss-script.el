@@ -57,7 +57,9 @@ jss-script-source-original-location-functions."
     (let ((inhibit-read-only t))
       (erase-buffer)
       (insert (jss-script-body jss-script)))
-    (js2-mode)
+    (if (fboundp 'js2-mode)
+        (js2-mode)
+      (js-mode))
     (setf buffer-read-only t
           jss-current-script jss-script)))
 

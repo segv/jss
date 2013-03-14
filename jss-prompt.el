@@ -165,10 +165,14 @@ Supply a prefix arg to force sending the current text"
 
       (when force-eval
         (return (jss-prompt-submit prompt)))
-
-      (let ((js2-parse-errors (with-temp-buffer
-                                (insert (jss-prompt-input-text prompt))
-                                (js2-ast-root-errors (js2-parse)))))
+      
+      (let ((js2-parse-errors
+             (if (fboundp 'js2-parse)
+                 (with-temp-buffer
+                   (insert (jss-prompt-input-text prompt))
+                   (js2-ast-root-errors (js2-parse)))
+               ;; don't have js2-parse :( send the input and let the browser syntax check it
+               '())))
         
         (if js2-parse-errors
             (progn

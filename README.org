@@ -34,9 +34,9 @@ based javascript applications.
    and eieio is a big complicated chunk 'o code which may or may not
    work the same on emacs23).
 
-1. js2-mode - Required for the prompt's syntax checker. We could very
-   easily not require it, but it's such a good js mode you should be
-   using it.
+1. js2-mode - (not strictly required, but strongly recomended)
+   Required for the prompt's syntax checker, and is the default mode
+   for js script buffers.
 
 1. [[https://github.com/ahyatt/emacs-websocket][emacs-websocket]] - Required for the webkit protocol (but not firefox):
 
