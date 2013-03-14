@@ -64,3 +64,14 @@ request.
 
 it may not be possible to do this via the browser, but even just being
 able to do it locally would be a big help.
+* TODO slime like 'pop up windows'
+instead of using switch-to-buffer-other-window we should have a
+function which stores the current window configuration, then does
+switch-to-buffer-other-window. when closing the other buffer if the
+window configuration is the same (no changes have been made except for
+what we did) we should restore the previous window configuration.
+
+maybe popwin? https://github.com/m2ym/popwin-el
+
+yes, just make sure popwin integration is working and suggest using
+that instead of implementing it ourselves.
