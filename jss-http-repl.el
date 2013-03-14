@@ -1,9 +1,24 @@
 (define-derived-mode jss-http-repl-mode jss-super-mode "JSS HTTP REPL"
   "Major mode for manually creating, editing and submitting HTTP requests.
 
+A jss-http-repl buffer contains a set of HTTP
+transactions (request / response pairs). The request, header and
+data, is edited as normal emacs text, the converted into an HTTP
+request, sent as binary data (the way text is converted into
+binary still needs work) and the response, headers and data, is
+inserted into the buffer. After each transaction a new response
+header/data set is created and inserted into the buffer (this is
+usually just a copy of the previous sent headers and data, but if
+jss-http-repl-track-cookies is T, the default, Cookie headers may
+be added.
+
+Some convenience functions are provided for setting certain
+headers (Authorization is the only one that's actually useful,
+the other are just shortucts).
+
 A jss-http-repl buffer can be quickly created from a JSS IO
- buffer; this allows for easily editing/debugging/replaying
- recent json requests from the browser.
+buffer; this allows for easily editing/debugging/replaying recent
+json requests from the browser.
 
 This mode is designed for testing/debugging json/ajax requests
 but it can be used with any kind of HTTP request."
