@@ -1,10 +1,24 @@
+;;; jss-prompt.el -- code for reading and printing javascript code evaluations in a buffer
+;;
+;; Copyright (C) 2013 Edward Marco Baringer
+;;
+;; This program is free software; you can redistribute it and/or
+;; modify it under the terms of the GNU General Public License as
+;; published by the Free Software Foundation; either version 2 of
+;; the License, or (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be
+;; useful, but WITHOUT ANY WARRANTY; without even the implied
+;; warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+;; PURPOSE. See the GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public
+;; License along with this program; if not, write to the Free
+;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+;; MA 02111-1307 USA
+
 ;;; the jss prompt is designed so that it can be embedded in multiple
 ;;; places (the console buffer and the debugger for now).
-
-;;; TODO: A prompt is, by default, inactive, when it's activated the
-;;; buffer's keymap is stored away, motion is limited ot whithin the
-;;; prompt itself and the prompt map is used. when done (via C-c C-c),
-;;; the prompt is made read-noly and the prompt keymap disappears
 
 (defvar jss-prompt-map
   (let ((map (make-sparse-keymap)))

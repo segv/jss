@@ -1,3 +1,22 @@
+;;; jss-http-repl.el -- major mode for sending http requests
+;;
+;; Copyright (C) 2013 Edward Marco Baringer
+;;
+;; This program is free software; you can redistribute it and/or
+;; modify it under the terms of the GNU General Public License as
+;; published by the Free Software Foundation; either version 2 of
+;; the License, or (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be
+;; useful, but WITHOUT ANY WARRANTY; without even the implied
+;; warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+;; PURPOSE. See the GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public
+;; License along with this program; if not, write to the Free
+;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+;; MA 02111-1307 USA
+
 (define-derived-mode jss-http-repl-mode jss-super-mode "JSS HTTP REPL"
   "Major mode for manually creating, editing and submitting HTTP requests.
 
@@ -435,8 +454,7 @@ simple insert is enough to insert a new header) and returns nil"
       (setf jss-http-repl-status :receiving-headers))
      ((string= "connection broken by remote peer\n" status)
       (setf jss-http-repl-status :closed
-            jss-http-repl-keep-alive nil)
-      (jss-http-repl-insert-next-request))
+            jss-http-repl-keep-alive nil))
      (t
       (message "%s got unknown sentinel status %s." proc status)))))
 
@@ -456,6 +474,7 @@ simple insert is enough to insert a new header) and returns nil"
   (setf jss-http-repl-status :receiving-headers))
 
 (defun jss-http-repl-insert-next-request ()
+  (message "Inserting next request %s:%s" jss-http-repl-previous-host jss-http-repl-previous-port)
   (let ((inhibit-read-only t))
     (insert "\n")
     (jss-http-repl-insert-request :headers jss-http-repl-previous-header-string

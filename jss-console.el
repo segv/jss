@@ -1,3 +1,21 @@
+;;; jss-console.el -- a jss console and logger for a given browser tab
+;;
+;; Copyright (C) 2013 Edward Marco Baringer
+;;
+;; This program is free software; you can redistribute it and/or
+;; modify it under the terms of the GNU General Public License as
+;; published by the Free Software Foundation; either version 2 of
+;; the License, or (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be
+;; useful, but WITHOUT ANY WARRANTY; without even the implied
+;; warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+;; PURPOSE. See the GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public
+;; License along with this program; if not, write to the Free
+;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+;; MA 02111-1307 USA
 
 (define-derived-mode jss-console-mode jss-super-mode "JSS Console"
   "A jss console buffer serves two purposes:
@@ -116,10 +134,33 @@ immediately if the connection already exsits)."
              (jss-console-debug-message (jss-current-console) "Connected."))
            tab))))))
 
+(defmacro jss-when-bind ((var value) &rest body)
+  `(jss-if-bind (,var ,value) (progn ,@body)))
+
+(defmacro jss-if-bind ((var value) then &rest else)
+  `(let ((,var ,value))
+     (if ,var
+         ,then
+       ,@else)))
+
 (defun jss-console-kill ()
   "Close the connection to the current console/tab and perfrom
 any necessary cleanup."
   (interactive)
+  (jss-when-bind (console (jss-current-console))
+                 )
+  ;; why don't we have when-bind?
+  (let ((browser (and 
+                      (jss-console-tab (jss-current-console))
+                      (jss-tab-browser (jss-console-tab (jss-current-console))))))
+    (jss-console-close (jss-current-console))
+    ;; do this after closing the console so the refresh doesn't see our current connection
+    (jss-browser-refresh browser)
+    )
+  (when )
+  (let ((console ))
+    (when console
+      (let ((tab )))))
   (let ((browser (jss-tab-browser (jss-console-tab (jss-current-console)))))
     (jss-console-close (jss-current-console))
     ;; do this after closing the console so the refresh doesn't see our current connection
