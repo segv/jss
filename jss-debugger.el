@@ -41,11 +41,15 @@ the current frame's top line."
 
 (easy-menu-define jss-debugger-menu jss-debugger-mode-map
   "Menu for JSS Debugger buffers."
-  '("JSS Debugger"
+  `("JSS Debugger"
     [ "Resume" jss-debugger-stepper-resume t ]
     [ "Step Into" jss-debugger-stepper-step-into t ]
     [ "Step Over" jss-debugger-stepper-step-over t ]
-    [ "Step Out" jss-debugger-stepper-step-out t ]))
+    [ "Step Out" jss-debugger-stepper-step-out t ]
+    [ "Jump to Next Frame" jss-frame-next t ]
+    [ "Jump to Previous Frame" jss-frame-previous t ]
+    [ "Jump to Exception" jss-frame-goto-exception t]
+    [ "Jump to Frame Source" jss-frame-goto-source :active (get-text-property (point) 'jss-frame) ]))
 
 (make-variable-buffer-local
  (defvar jss-current-debugger-instance))
@@ -260,7 +264,8 @@ we want to look for the local file containg the, editable, source
 code."
   (interactive "P")
   (let ((frame (get-text-property (point) 'jss-frame)))
-    (unless frame (error "No frame at point."))
+    (unless frame
+      (error "No frame at point."))
     (jss-deferred-add-backs
      (jss-frame-get-source-location frame)
      (lambda (location)
