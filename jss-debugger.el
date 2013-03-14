@@ -39,6 +39,14 @@ the current frame's top line."
         (goto-char (car (jss-find-property-block 'jss-debugger-exception t)))))
     t))
 
+(easy-menu-define jss-debugger-menu jss-debugger-mode-map
+  "Menu for JSS Debugger buffers."
+  '("JSS Debugger"
+    [ "Resume" jss-debugger-stepper-resume t ]
+    [ "Step Into" jss-debugger-stepper-step-into t ]
+    [ "Step Over" jss-debugger-stepper-step-over t ]
+    [ "Step Out" jss-debugger-stepper-step-out t ]))
+
 (make-variable-buffer-local
  (defvar jss-current-debugger-instance))
 

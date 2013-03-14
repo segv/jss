@@ -47,7 +47,12 @@ expand objects while moving around the buffer."
   (jss-console-ensure-connection)
   t)
 
-(define-key jss-console-mode-map (kbd "C-c C-r") 'jss-console-ensure-connection)
+(easy-menu-define jss-console-menu jss-console-mode-map
+  "Menu for JSS Console buffers."
+  '("JSS Console"
+    [ "Reload Tab" jss-console-reload-page t ]
+    [ "Clear Buffer"  jss-console-clear-buffer t ]))
+
 (define-key jss-console-mode-map (kbd "C-c C-o") 'jss-console-clear-buffer)
 (define-key jss-console-mode-map (kbd "C-c C-r") 'jss-console-reload-page)
 (define-key jss-console-mode-map (kbd "C-c C-n") 'jss-toggle-network-monitor)
