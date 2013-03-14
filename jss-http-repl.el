@@ -474,7 +474,7 @@ simple insert is enough to insert a new header) and returns nil"
               (when (looking-at "Content-Length:\\s-*\\([0-9]+\\)\\s-*$")
                 (setf jss-http-repl-content-length (string-to-number (match-string-no-properties 1))))
               (when (and jss-http-repl-track-cookies
-                         (looking-at "Set-Cookie:\\s-*\\(.*\\)$"))
+                         (looking-at (concat "Set-Cookie:\\s-*\\(.*\\)" (jss-chars-to-string #x0d #x0a))))
                 (push (match-string-no-properties 1) jss-http-repl-set-cookies))
               (when (looking-at (jss-chars-to-string #x0d #x0a))
                 (delete-region (1- (point)) (+ 2 (point)))
