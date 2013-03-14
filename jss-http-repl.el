@@ -176,7 +176,9 @@ name of the header to add."
       t
     (insert header-name ": \n")
     (forward-line -1)
-    (jss-http-repl-gopast-header header-name)))
+    (jss-http-repl-gopast-header header-name)
+    (when (jss-http-repl-request-header-editor header-name)
+      (insert (call-interactively (jss-http-repl-request-header-editor header-name))))))
 
 (defun jss-http-repl-goto-header (header-name)
   "If there is a header named `header-name` in the current
@@ -214,7 +216,7 @@ simple insert is enough to insert a new header) and returns nil"
 
 (defvar jss-http-repl-request-header-editors
   '("Accept" "Accept-Charset" "Accept-Encoding" "Accept-Language" "Accept-Datetime"
-    "Authorization"
+    ("Authorization" . jss-http-repl-set-authorization)
     ("Cache-Control" . jss-http-repl-choose-cache-control)
     "Connection"
     "Cookie"
@@ -244,7 +246,7 @@ simple insert is enough to insert a new header) and returns nil"
       (return (cdr h)))
      ((and (stringp h)
            (string= h header-name))
-      (return t)))))
+      (return nil)))))
 
 (defvar jss-http-repl-user-agents
   '(("IE 6" . "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)")
@@ -256,6 +258,7 @@ simple insert is enough to insert a new header) and returns nil"
     ("Safari" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_6_8) AppleWebKit/537.13+ (KHTML, like Gecko) Version/5.1.7 Safari/534.57.2")))
 
 (defun jss-http-repl-choose-user-agent ()
+  (interactive)
   (let* ((user-agent-name (jss-completing-read "Browser: " (mapcar 'car jss-http-repl-user-agents)
                                                :require-match nil))
          (known-value (cl-assoc user-agent-name jss-http-repl-user-agents :test 'string=)))
@@ -276,6 +279,11 @@ simple insert is enough to insert a new header) and returns nil"
     (format "%d" (string-bytes
                   (buffer-substring-no-properties (jss-http-repl-goto-data-start)
                                                   (point-max))))))
+
+(defun jss-http-repl-set-authorization (username password)
+  (interactive (list (read-from-minibuffer "Username: ")
+                     (read-from-minibuffer "Password: ")))
+  (concat "Basic " (base64-encode-string (format "%s:%s" username password))))
 
 (defun jss-http-repl-delete-headers ()
   (jss-http-repl-goto-header-start)
