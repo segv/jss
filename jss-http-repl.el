@@ -347,10 +347,10 @@ simple insert is enough to insert a new header) and returns nil"
   (let ((endpoint-location (jss-find-property-block 'jss-http-repl-endpoint t)))
     (goto-char (car endpoint-location))
     (save-match-data
-      (if (looking-at "Endpoint:\\s-*\\(.*?\\)\\(:\\([0-9]+\\)\\)?\\s-*\\(SSL\\)?\\s-*$")
+      (if (looking-at "Endpoint:\\s-*\\(.*?\\):\\([0-9]+\\)\\s-*\\(SSL\\s-*\\)?$")
           (list :host (match-string-no-properties 1)
-                :port (match-string-no-properties 3)
-                :ssl (if (match-string-no-properties 4)
+                :port (match-string-no-properties 2)
+                :ssl (if (match-string-no-properties 3)
                          t
                        nil))
         '()))))
