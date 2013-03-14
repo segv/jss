@@ -24,6 +24,19 @@ but it can be used with any kind of HTTP request."
 (define-key jss-http-repl-mode-map (kbd "C-c <return>") 'jss-http-repl-ensure-header)
 (define-key jss-http-repl-mode-map (kbd "C-c C-c") 'jss-http-repl-send-request)
 
+(defcustom jss-http-repl-track-cookies t
+  "When T, and can be buffer local, automatically keep track of
+  cookies by adding/removing headers from the request objects."
+  :type 'boolean
+  :group 'jss)
+
+(make-variable-buffer-local 'jss-http-repl-track-cookies)
+
+(defvar jss-http-repl-cookie-jar '())
+
+(make-variable-buffer-local
+ (defvar jss-http-repl-previous-header-string nil))
+
 (make-variable-buffer-local
  (defvar jss-http-repl-previous-header-string nil))
 
@@ -41,6 +54,10 @@ but it can be used with any kind of HTTP request."
 (make-variable-buffer-local
  (defvar jss-http-repl-content-length nil
    "The number of bytes of body data we're expecting."))
+
+(make-variable-buffer-local
+ (defvar jss-http-repl-set-cookies '()
+   "Any cookies that should be added to the following request's headers."))
 
 (defface jss-http-repl-meta-data-face
   '((t :inherit font-lock-special-keyword-face))
@@ -82,7 +99,13 @@ but it can be used with any kind of HTTP request."
 
     (jss-http-repl-set-endpoint :host host :port port :ssl ssl)
     (when headers
-      (jss-http-repl-set-headers headers))
+      (if jss-http-repl-set-cookies
+          (progn
+            (jss-http-repl-set-headers headers :extra-headers (mapcar (lambda (cookie)
+                                                                        (cons "Cookie" cookie))
+                                                                      jss-http-repl-set-cookies))
+            (setf jss-http-repl-set-cookies '()))
+        (jss-http-repl-set-headers headers)))
     (when data
       (jss-http-repl-set-request-data data))
     
@@ -267,7 +290,7 @@ simple insert is enough to insert a new header) and returns nil"
 (defun jss-chars-to-string (&rest chars)
   (apply 'concat (mapcar 'char-to-string chars)))
 
-(defun jss-http-repl-set-headers (header-string)
+(defun* jss-http-repl-set-headers (header-string &key extra-headers)
   (delete-region (jss-http-repl-goto-header-start)
                  (jss-http-repl-goto-header-end))
   ;; the above delete-region leaves point at the beginning of the header block
@@ -278,6 +301,9 @@ simple insert is enough to insert a new header) and returns nil"
                                                 (jss-chars-to-string #x0a)
                                                 header-string))
   (insert header-string)
+  (loop
+   for (name . value) in extra-headers
+   do (insert name ": " value "\n"))
   (jss-http-repl-goto-header-start))
 
 (defun jss-http-repl-request-data ()
@@ -386,7 +412,10 @@ simple insert is enough to insert a new header) and returns nil"
       (setf jss-http-repl-status :receiving-headers))
      ((string= "connection broken by remote peer\n" status)
       (setf jss-http-repl-status :closed
-            jss-http-repl-keep-alive nil)))))
+            jss-http-repl-keep-alive nil)
+      (jss-http-repl-insert-next-request))
+     (t
+      (message "%s got unknown sentinel status %s." proc status)))))
 
 (defun jss-http-repl-process-send-data ()
   (goto-char (point-max))
@@ -403,6 +432,20 @@ simple insert is enough to insert a new header) and returns nil"
     (process-send-string proc (encode-coding-string jss-http-repl-previous-data-string 'utf-8-unix)))
   (setf jss-http-repl-status :receiving-headers))
 
+(defun jss-http-repl-insert-next-request ()
+  (let ((inhibit-read-only t))
+    (insert "\n")
+    (jss-http-repl-insert-request :headers jss-http-repl-previous-header-string
+                                  :data jss-http-repl-previous-data-string
+                                  :host jss-http-repl-previous-host
+                                  :port (format "%d" jss-http-repl-previous-port)
+                                  :ssl jss-http-repl-previous-ssl))
+  (setf jss-http-repl-previous-header-string nil
+        jss-http-repl-previous-data-string nil
+        jss-http-repl-previous-host nil
+        jss-http-repl-previous-port nil
+        jss-http-repl-previous-ssl nil))
+
 (defun jss-http-repl-process-filter (proc output)
   (unless (memq jss-http-repl-status '(:receiving-headers :receiving-data))
     (error "Process filter got unexpected data: %s" output))
@@ -416,30 +459,31 @@ simple insert is enough to insert a new header) and returns nil"
         (when (eql :receiving-headers jss-http-repl-status)
           (goto-char start)
           (beginning-of-line)
-          (while (not (eobp))
-            (when (looking-at "Connection:\\s-*\\(.*\\)\\s-*$")
-              (setf jss-http-repl-keep-alive (string= "keep-alive" (downcase (match-string-no-properties 1)))))
-            (when (looking-at "Content-Length:\\s-*\\([0-9]+\\)\\s-*$")
-              (setf jss-http-repl-content-length (string-to-number (match-string-no-properties 1))))
-            (when (looking-at (jss-chars-to-string #x0d #x0a))
-              (delete-region (1- (point)) (+ 2 (point)))
-              (jss-wrap-with-text-properties (list 'read-only t
-                                                   'face 'jss-http-repl-meta-data-face)
-                (insert "\n--response data follows this line--\n"))
-              (setf jss-http-repl-status :receiving-data
-                    jss-http-repl-response-data-start (point)))
-            (forward-line 1)))
+          (block nil
+            (while (not (eobp))
+              (when (looking-at "Connection:\\s-*\\(.*\\)\\s-*$")
+                (setf jss-http-repl-keep-alive (string= "keep-alive" (downcase (match-string-no-properties 1)))))
+              (when (looking-at "Content-Length:\\s-*\\([0-9]+\\)\\s-*$")
+                (setf jss-http-repl-content-length (string-to-number (match-string-no-properties 1))))
+              (when (and jss-http-repl-track-cookies
+                         (looking-at "Set-Cookie:\\s-*\\(.*\\)$"))
+                (push (match-string-no-properties 1) jss-http-repl-set-cookies))
+              (when (looking-at (jss-chars-to-string #x0d #x0a))
+                (delete-region (1- (point)) (+ 2 (point)))
+                (jss-wrap-with-text-properties (list 'read-only t
+                                                     'face 'jss-http-repl-meta-data-face)
+                  (insert "\n--response data follows this line--\n"))
+                (setf jss-http-repl-status :receiving-data
+                      jss-http-repl-response-data-start (point))
+                (forward-line 1)
+                (return))
+              (forward-line 1))))
         (when (eql :receiving-data jss-http-repl-status)
           (when (and jss-http-repl-response-data-start
                      jss-http-repl-content-length
                      (= jss-http-repl-content-length (- (point) jss-http-repl-response-data-start)))
             (setf jss-http-repl-status :idle)))
         (when (eql :idle jss-http-repl-status)
-          (insert "\n")
-          (jss-http-repl-insert-request :headers jss-http-repl-previous-header-string
-                                        :data jss-http-repl-previous-data-string
-                                        :host jss-http-repl-previous-host
-                                        :port (format "%d" jss-http-repl-previous-port)
-                                        :ssl jss-http-repl-previous-ssl))))))
+          (jss-http-repl-insert-next-request))))))
 
 (provide 'jss-http-repl)
