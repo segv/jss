@@ -1,5 +1,8 @@
 * jsSlime - An emacs interface to webkit and mozilla debuggers
 
+jsSlime (jss for short) is designed for emacs users who program web
+based javascript applications.
+
 ** Salient Features
 
 1. Connects directly to your browser. Does not require injecting js
