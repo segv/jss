@@ -274,11 +274,8 @@ browser side objects."
 
 (defun jss-set-debugger-sensitivity (level)
   "Set the debugger for the current tab to stop on nothing, all exceptions or only uncaught exceptions."
-  (interactive (list (funcall (if ido-mode
-                                  'ido-completing-read
-                                'completing-read)
-                              "Break on: " (mapcar 'car jss-set-debugger-sensitivity/levels)
-                              nil t)))
+  (interactive (list (jss-completing-read "Break on: " (mapcar 'car jss-set-debugger-sensitivity/levels)
+                                          :require-match t)))
   (jss-tab-set-debugger-sensitivity (jss-current-tab)
                                     (cdr (assoc level jss-set-debugger-sensitivity/levels))))
 
