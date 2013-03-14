@@ -684,6 +684,9 @@
 (defmethod jss-io-request-url ((io jss-webkit-io))
   (cdr (assoc 'url (cdr (assoc 'request (jss-webkit-io-properties io))))))
 
+(defmethod jss-io-request-data ((io jss-webkit-io))
+  (cdr (assoc 'postData (cdr (assoc 'request (jss-webkit-io-properties io))))))
+
 (defmethod jss-io-id ((io jss-webkit-io))
   (cdr (assoc 'requestId (jss-webkit-io-properties io))))
 
