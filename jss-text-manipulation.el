@@ -225,12 +225,13 @@ chars."
         (setf block-end (min (1+ (point)) (point-max)))
 
         (block nil
-          (while (and (funcall test (get-text-property (point) property-name) property-value)
-                      (< (point-min) (point)))
-            (backward-char 1)))
-        (setf block-start (min (1+ (point)) (point-max)))
-
-        (cons block-start block-end)))))
+          (while (funcall test (get-text-property (point) property-name) property-value)
+            (when (= (point) (point-min))
+              (return))
+            (backward-char 1))
+          (forward-char 1))
+        
+        (cons (point) block-end)))))
 
 (defun* jss-delete-property-block (property-name property-value &key (test 'equal) (error t))
   (let ((location (jss-find-property-block property-name property-value :test test :error error))
