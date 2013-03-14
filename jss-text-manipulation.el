@@ -364,4 +364,19 @@ back (from the old start to where `body` left point)"
                (when (overlay-get body-overlay 'invisible)
                  "...\n")))
 
+(defun* jss-completing-read (prompt choices
+                             &key (history nil) (require-match t)
+                                  (initial-input nil))
+  "Calls eiither ido-completing-read or completing-read depending
+on the variable ido-mode."
+  (funcall (if ido-mode
+               'ido-completing-read
+             'completing-read)
+           prompt choices nil require-match initial-input history nil))
+
+(defun jss-insert-read-only (&rest insert-args)
+  (jss-wrap-with-text-properties (list 'read-only t)
+    (let ((inhibit-read-only t))
+      (apply 'insert insert-args))))
+
 (provide 'jss-text-manipulation)
