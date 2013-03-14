@@ -243,6 +243,27 @@ chars."
     (insert-and-inherit (apply 'format format-control format-args))
     (add-text-properties start (point) property-list)))
 
+(defmacro* jss-replace-with-default-property ((property-name property-value &key (test 'eq)) &body body)
+  "Find the block in the current buffer with the text-property
+`property-name` whose value is `property-value`, delete this
+block, move point to where the block was, run `body` and then add
+the text property `property-name` with value `property-value`
+back (from the old start to where `body` left point)"
+  (declare (indent 1))
+  (let ((loc (gensym)) (prop-val (gensym)))
+    `(let* ((,prop-val ,property-value)
+            (,loc (jss-find-property-block ',property-name ,prop-val :test ,test))
+            (inhibit-read-only t))
+       (save-excursion
+         (goto-char (car ,loc))
+         (delete-region (car ,loc) (cdr ,loc))
+         (let ((start (point)))
+           (prog1
+               (progn ,@body)
+             (jss-add-text-property-unless-exists (car ,loc) (point)
+                                                  ',property-name
+                                                  ,prop-val)))))))
+
 (defmacro jss-wrap-with-text-properties (properties &rest body)
   (declare (indent 1))
   (let ((start (gensym)))
