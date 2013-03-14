@@ -25,6 +25,6 @@
 (require 'jss-io-pretty-printers)
 (require 'jss-io)
 (require 'jss-debugger)
-(require 'jss-request-editor)
+(require 'jss-http-repl)
 
 (provide 'jss)

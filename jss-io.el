@@ -84,7 +84,7 @@
 (easy-menu-define jss-io-mode-menu jss-io-mode-map "JSS IO Menu"
   '("JSS IO"
     [ "Close" 'kill-buffer t]
-    [ "Edit as new request" jss-io-clone-into-request-editor t ]))
+    [ "Edit as new request" jss-io-clone-into-http-repl t ]))
 
 (define-key jss-io-mode-map (kbd "q") (lambda () (interactive) (kill-buffer (current-buffer))))
 
@@ -141,22 +141,21 @@
            (insert response-data)))
       (insert response-data))))
 
-(defun jss-io-clone-into-request-editor ()
+(defun jss-io-clone-into-http-repl ()
   (interactive)
   (message "Current buffer: %s" (current-buffer))
   (message "Current window: %s" (get-buffer-window (current-buffer)))
   (let ((raw-request-headers (jss-io-raw-request-headers (jss-current-io)))
         (request-data (jss-io-request-data (jss-current-io)))
         (url (url-generic-parse-url (jss-io-request-url (jss-current-io)))))
-    (switch-to-buffer-other-window
-     (jss-request-editor-new :headers raw-request-headers
-                             :data request-data
-                             :host (url-host url)
-                             :port (cond
-                                    ((url-port url) (format "%d" (url-port url)))
-                                    ((string= "http" (url-type url)) "80")
-                                    ((string= "https" (url-type url)) "443")
-                                    (t "80"))
-                             :ssl (string= "https" (url-type url))))))
+    (jss-http-repl-new :headers raw-request-headers
+                       :data request-data
+                       :host (url-host url)
+                       :port (cond
+                              ((url-port url) (format "%d" (url-port url)))
+                              ((string= "http" (url-type url)) "80")
+                              ((string= "https" (url-type url)) "443")
+                              (t "80"))
+                       :ssl (string= "https" (url-type url)))))
 
 (provide 'jss-io)
