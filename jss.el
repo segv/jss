@@ -6,6 +6,7 @@
 (define-key jss-super-mode-map (kbd "<tab>") 'jss-next-button)
 (define-key jss-super-mode-map (kbd "<S-tab>") 'jss-previous-button)
 
+(require 'easymenu)
 (require 'js2-mode)
 (require 'cl)
 (require 'eieio)
@@ -24,5 +25,6 @@
 (require 'jss-io-pretty-printers)
 (require 'jss-io)
 (require 'jss-debugger)
+(require 'jss-request-editor)
 
 (provide 'jss)
