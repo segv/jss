@@ -1,9 +1,3 @@
-
-(make-variable-buffer-local
- (defvar jss-current-io-object))
-
-(defun jss-current-io () jss-current-io-object)
-
 (define-derived-mode jss-io-mode jss-super-mode "JSS IO"
   ""
   (setf jss-current-io-object jss-io
@@ -23,7 +17,7 @@
 
   (jss-toggling-visibility
    (lambda ()
-     (insert "Request Headers: "))
+     (insert "Request Headers:"))
    (lambda ()
      (insert "\n")
      (jss-wrap-with-text-properties `(jss-request-headers t)
@@ -37,9 +31,16 @@
           (insert (jss-io-raw-request-headers jss-io))
           (insert "\n"))))))
 
-  (unless (string= "GET" (jss-io-request-method jss-io))
-    (insert "Request Data: ")
-    (insert "\n"))
+  (when (jss-io-request-data jss-io)
+    (jss-toggling-visibility
+     (lambda ()
+       (insert "Request Data:"))
+     (lambda ()
+       (insert "\n")
+       (jss-wrap-with-text-properties `(jss-request-data t)
+         (insert (jss-io-request-data jss-io)))
+       (insert "\n"))
+     :initially-visibile (< (length (jss-io-request-data io)) (window-width (get-buffer-window (current-buffer))))))
   
   (when (jss-io-response-status jss-io)
     (jss-toggling-visibility
