@@ -744,10 +744,11 @@
             (cdr (assoc 'statusText response)))))
 
 (define-jss-webkit-notification-handler "Network.requestWillBeSent" (requestId loaderId documentURL request timestamp initiator stackTrace redirectResponse)
-  (let ((io (make-instance 'jss-webkit-io
-                           :properties params
-                           :start-time timestamp
-                           :lifecycle (list (list :sent timestamp)))))
+  (let* ((time (seconds-to-time timestamp))
+         (io (make-instance 'jss-webkit-io
+                            :properties params
+                            :start-time time
+                            :lifecycle (list (list :sent time)))))
     (setf (jss-tab-get-io tab requestId) io)
     (jss-console-insert-request console io)))
 
@@ -760,26 +761,29 @@
                             ,io-id)))))
 (put 'with-existing-io 'lisp-indent-function 1)
 
+(defun jss-nconc-item (list item)
+  (setf (cdr (last list)) (list item)))
+
 (define-jss-webkit-notification-handler "Network.dataReceived" (requestId timestamp dataLength encodedDataLength)
   (with-existing-io requestId
-    (push (list :data-received timestamp
-                :data-length dataLength
-                :encoded-data-length encodedDataLength)
-          (jss-io-lifecycle io))
+    (jss-nconc-item (jss-io-lifecycle io)
+                    (list :data-received (seconds-to-time timestamp)
+                          :data-length dataLength
+                          :encoded-data-length encodedDataLength))
     (jss-console-update-request-message console io)))
 
 (define-jss-webkit-notification-handler "Network.loadingFailed" (requestId timestamp errorText canceled)
   (with-existing-io requestId
-    (push (list :loading-failed timestamp
-                :error-text errorText
-                :canceled canceled)
-          (jss-io-lifecycle io))
+    (jss-nconc-item (jss-io-lifecycle io)
+                    (list :loading-failed (seconds-to-time timestamp)
+                          :error-text errorText
+                          :canceled canceled))
     (jss-console-update-request-message console io)))
 
 (define-jss-webkit-notification-handler "Network.loadingFinished" (requestId timestamp)
   (with-existing-io requestId
-    (push (list :loading-finished timestamp)
-          (jss-io-lifecycle io))
+    (jss-nconc-item (jss-io-lifecycle io)
+                    (list :loading-finished (seconds-to-time timestamp)))
     (lexical-let ((io io)
                   (requestId requestId))
       (jss-deferred-add-backs
@@ -793,27 +797,26 @@
 
 (define-jss-webkit-notification-handler "Network.requestServedFromCache" (requestId)
   (with-existing-io requestId
-    (push (list :served-from-cache nil)
-          (jss-io-lifecycle io))
+    (jss-nconc-item (jss-io-lifecycle io) (list :served-from-cache nil))
     (jss-console-update-request-message console io)))
 
 (define-jss-webkit-notification-handler "Network.requestServedFromMemoryCache" (requestId loaderId documentURL timestamp initiator resource)
   (with-existing-io requestId
-    (push (list :served-from-memory-cache timestamp
-                :loader-id loaderId
-                :document-url documentURL
-                :initiator initiator
-                :resource resource)
-          (jss-io-lifecycle io))
+    (jss-nconc-item (jss-io-lifecycle io)
+                    (list :served-from-memory-cache (seconds-to-time timestamp)
+                          :loader-id loaderId
+                          :document-url documentURL
+                          :initiator initiator
+                          :resource resource))
     (jss-console-update-request-message console io)))
 
 (define-jss-webkit-notification-handler "Network.responseReceived" (requestId loaderId timestamp type response)
   (with-existing-io requestId
-    (push (list :response-received timestamp
-                :loader-id loaderId
-                :type type
-                :response response)
-          (jss-io-lifecycle io))
+    (jss-nconc-item (jss-io-lifecycle io)
+                    (list :response-received (seconds-to-time timestamp)
+                          :loader-id loaderId
+                          :type type
+                          :response response))
     (setf (jss-webkit-io-response io) response)
     
    (jss-console-update-request-message console io)))

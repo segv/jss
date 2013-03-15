@@ -398,4 +398,17 @@ on the variable ido-mode."
     (let ((inhibit-read-only t))
       (apply 'insert insert-args))))
 
+(defmacro* jss-when-bind ((var value) &rest body)
+  `(jss-if-bind (,var ,value) (progn ,@body)))
+
+(put 'jss-when-bind 'lisp-indent-function 1)
+
+(defmacro* jss-if-bind ((var value) then &rest else)
+  `(let ((,var ,value))
+     (if ,var
+         ,then
+       ,@else)))
+
+(put 'jss-when-bind 'lisp-indent-function 1)
+
 (provide 'jss-text-manipulation)

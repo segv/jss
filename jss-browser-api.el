@@ -238,7 +238,11 @@ been closed.")
 (defclass jss-generic-io ()
   ((tab :accessor jss-io-tab :initform nil)
    (start-time :accessor jss-io-start :initarg :start-time)
-   (lifecycle :initform '() :accessor jss-io-lifecycle :initarg :lifecycle)
+   (lifecycle :initform '() :accessor jss-io-lifecycle :initarg :lifecycle
+              :documentation "A list of (EVENT WHEN) describing,
+              if possible genericly, the events that have occured
+              for this IO. Must be kept in chronological
+              order (oldest first).")
    (buffer :initform nil :accessor jss-io-buffer))
   (:documentation "An object that describes a single
 request/response between the browser and a server."))

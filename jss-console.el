@@ -69,7 +69,12 @@ expand objects while moving around the buffer."
   "Menu for JSS Console buffers."
   '("JSS Console"
     [ "Reload Tab" jss-console-reload-page t ]
-    [ "Clear Buffer"  jss-console-clear-buffer t ]))
+    [ "Clear Buffer"  jss-console-clear-buffer t ]
+    [ "Disable Timing Data Log"  jss-console-toggle-timing-data
+      :visible jss-console-log-timing-data ]
+    [ "Enable Timing Data Log"  jss-console-toggle-timing-data
+      :visible (not jss-console-log-timing-data) ]
+    ))
 
 (define-key jss-console-mode-map (kbd "C-c C-o") 'jss-console-clear-buffer)
 (define-key jss-console-mode-map (kbd "C-c C-r") 'jss-console-reload-page)
@@ -134,37 +139,15 @@ immediately if the connection already exsits)."
              (jss-console-debug-message (jss-current-console) "Connected."))
            tab))))))
 
-(defmacro jss-when-bind ((var value) &rest body)
-  `(jss-if-bind (,var ,value) (progn ,@body)))
-
-(defmacro jss-if-bind ((var value) then &rest else)
-  `(let ((,var ,value))
-     (if ,var
-         ,then
-       ,@else)))
-
 (defun jss-console-kill ()
   "Close the connection to the current console/tab and perfrom
 any necessary cleanup."
   (interactive)
   (jss-when-bind (console (jss-current-console))
-                 )
-  ;; why don't we have when-bind?
-  (let ((browser (and 
-                      (jss-console-tab (jss-current-console))
-                      (jss-tab-browser (jss-console-tab (jss-current-console))))))
-    (jss-console-close (jss-current-console))
-    ;; do this after closing the console so the refresh doesn't see our current connection
-    (jss-browser-refresh browser)
-    )
-  (when )
-  (let ((console ))
-    (when console
-      (let ((tab )))))
-  (let ((browser (jss-tab-browser (jss-console-tab (jss-current-console)))))
-    (jss-console-close (jss-current-console))
-    ;; do this after closing the console so the refresh doesn't see our current connection
-    (jss-browser-refresh browser)))
+    (jss-when-bind (tab (jss-console-tab console))
+      (jss-when-bind (browser (jss-tab-browser tab))
+        (jss-console-close console)
+        (jss-browser-refresh browser)))))
 
 (defmethod jss-console-debug-message ((console jss-generic-console) &rest format-message-args)
   "Append a message, of priority \"debug\", to `console`."
@@ -249,6 +232,25 @@ the face and label corresponding to `level`."
         (unless (bolp)
           (insert "\n"))))))
 
+(defcustom jss-console-log-timing-data t
+  "When non-NIL, the default, io log events in the console will also log timing information."
+  :type 'boolean
+  :group 'jss)
+
+(defun jss-console-toggle-timing-data ()
+  (interactive)
+  (setf jss-console-log-timing-data (not jss-console-log-timing-data)))
+
+(defun jss-lifecycle-event-to-string (event-code)
+  (ecase event-code
+    (:sent "request sent")
+    (:loading-finished "done")
+    (:data-received "data")
+    (:loading-failed "Failed")
+    (:served-from-cache "cached")
+    (:served-from-memory-cache "mem cached")
+    (:response-received "response")))
+
 (defmethod jss-console-insert-io-line ((console jss-generic-console) io)
   "Insert a line into the current buffer (which must be a console
 buffer) describing the current state of `io`."
@@ -259,20 +261,41 @@ buffer) describing the current state of `io`."
                                            'face (jss-console-level-face 'log)
                                            'read-only t)
         (let ((inhibit-read-only t))
-          (insert (jss-console-level-label 'log)
-                  (ecase (first (first (jss-io-lifecycle io)))
-                    (:sent "Requested")
-                    (:loading-finished "Loaded")
-                    (:data-received "Data for")
-                    (:loading-failed "Failed")
-                    (:served-from-cache "From cache")
-                    (:served-from-memory-cache "From memory cache")
-                    (:response-received "Got response"))
-                  " ")
-          (insert (jss-io-id io) " ")
-          (jss-insert-button (jss-limit-string-length (jss-io-request-url io) 80)
+          (insert (jss-console-level-label 'log))
+          (jss-insert-button (jss-limit-string-length (concat (jss-io-request-method io)
+                                                              " "
+                                                              (jss-io-request-url io))
+                                                      80)
                              'jss-console-switch-to-io-inspector)
-          (insert "\n"))))))
+          (insert " " (jss-lifecycle-event-to-string (first (car (last (jss-io-lifecycle io))))) "\n")
+
+          (when jss-console-log-timing-data
+            (jss-when-bind (lifecycle (jss-io-lifecycle io))
+              (let* ((start-time (second (first lifecycle)))
+                     (start-time.ms (* 1000 (float-time start-time)))
+                     (last-time.ms 0))
+                (insert "          @"
+                        (format-time-string "%T.%6N" start-time)
+                        " "
+                        (jss-lifecycle-event-to-string (first (first lifecycle)))                        
+                        ";")
+                (dolist (l (butlast (rest (jss-io-lifecycle io))))
+                  (let* ((what (first l))
+                         (when.ms (* (float-time (second l)) 1000)))
+                    (setf last-time.ms when.ms)
+                    (insert " "
+                            (jss-lifecycle-event-to-string what)
+                            " after "
+                            (format "%0.3fms;" (- when.ms start-time.ms)))))
+                (let* ((last (car (last (jss-io-lifecycle io))))
+                       (last-what (first last))
+                       (last-when (second last))
+                       (last-when.ms (* 1000 (float-time last-when))))
+                  (insert "\n          @"
+                          (format-time-string "%T.%6N" last-when)
+                          " "
+                          (jss-lifecycle-event-to-string last-what)
+                          " (Elapsed " (format "%0.3fms" (- last-when.ms start-time.ms)) ")\n"))))))))))
 
 (defmethod jss-console-insert-request ((console jss-generic-console) io)
   "Insert a line in the buffer describing IO (and this should be the first time we've gotten an event related to IO."
