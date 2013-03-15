@@ -168,3 +168,13 @@ Note: See the manual for more details.
    object whose value lives inside the browser.  ~jss~ will insert
    buttons, which can be expanded, for this values.
 
+** Hacking
+
+1. [[https://github.com/segv/jss/contributors][Contributors]]
+
+1. [[https://github.com/segv/jss/issues][Report a bug]]
+
+1. [[https://github.com/segv/jss/pulls][Submit a patch]]
+
+For a list of things that are todo, see TODO.org.
+
