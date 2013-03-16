@@ -191,25 +191,38 @@ but it can be used with any kind of HTTP request."
       (forward-char 1)))
   (point))
 
-(defun jss-http-repl-ensure-header (header-name)
+(defun jss-http-repl-ensure-header ()
   "If there already is a header named `header-name` then simple
-moves to it, otherwise inserts it.
+moves to it, otherwise inserts it. Will prompt, with completion,
+for the name of the header to add."
+  (interactive)
+  (let* ((header-name (jss-completing-read "Header: "
+                                           (sort (mapcar (lambda (header)
+                                                           (if (consp header) (car header) header))
+                                                         jss-http-repl-request-header-editors)
+                                                 'string<)
+                                           :require-match nil))
+         (header-value (jss-http-repl-request-read-header-value header-name)))
+    (jss-http-repl-set-header header-name header-value)))
 
-When called interactively will prompt, with completion, for the
-name of the header to add."
-  (interactive (list (jss-completing-read "Header: "
-                                          (sort (mapcar (lambda (header)
-                                                          (if (consp header) (car header) header))
-                                                        jss-http-repl-request-header-editors)
-                                                'string<)
-                                          :require-match nil)))
-  (if (jss-http-repl-goto-header header-name)
-      t
-    (insert header-name ": \n")
-    (forward-line -1)
-    (jss-http-repl-gopast-header header-name)
-    (when (jss-http-repl-request-header-editor header-name)
-      (insert (call-interactively (jss-http-repl-request-header-editor header-name))))))
+(defun jss-http-repl-set-header (header-name header-value)
+  "Sets the value of `header-name` to `header-value'. If value is
+NIL leaves point after the newly inserted ?: char, if value is a
+string inserts it and moves to the next line. If a header named
+header-name already exists overwrites it."
+  (let ((inhibit-read-only t))
+    (when (jss-http-repl-goto-header header-name)
+      (delete-region (line-beginning-position) (line-end-position))
+      (when (and (eolp)
+                 (bolp)
+                 (not (eobp)))
+        ;; on an empty line
+        (delete-char 1)))
+    (insert header-name ": ")
+    (when header-value
+      (insert header-value))
+    (insert "\n")
+    (jss-http-repl-goto-header header-name)))
 
 (defun jss-http-repl-header-location (header-name)
   "If there is a header named `header-name` in the current
@@ -238,8 +251,15 @@ simple insert is enough to insert a new header) and returns nil"
     (if location
         (progn
           (goto-char (car location))
-          (jss-http-repl-gopast-header header-name))
+          (jss-http-repl-gopast-header header-name)
+          t)
       (jss-http-repl-goto-header-end)
+      nil)))
+
+(defun jss-http-repl-header-value (header-name)
+  (save-excursion
+    (if (jss-http-repl-goto-header header-name)
+        (buffer-substring-no-properties (point) (line-end-position))
       nil)))
 
 (defun jss-http-repl-in-header-line (name)
@@ -248,22 +268,26 @@ simple insert is enough to insert a new header) and returns nil"
     (looking-at (concat "^" (regexp-quote name) ":"))))
 
 (defun jss-http-repl-looking-at-header-p (header-name)
-  (looking-at (concat "^" (regexp-quote name) ":\\s-*")))
+  (looking-at (concat "^" (regexp-quote header-name) "\\(:\\)")))
 
 (defun jss-http-repl-gopast-header (name)
   (beginning-of-line)
   (save-match-data
     (if (jss-http-repl-looking-at-header-p name)
-        (goto-char (1- (match-end 0)))
+        (progn
+          (goto-char (match-end 1))
+          (while (and (not (eolp)) (looking-at "\\s-"))
+            (forward-char 1)))
       (error "Not looking at the header %s." name))))
 
 (defvar jss-http-repl-request-header-editors
   '("Accept" "Accept-Charset" "Accept-Encoding" "Accept-Language" "Accept-Datetime"
-    ("Authorization" . jss-http-repl-set-authorization)
-    ("Cache-Control" . jss-http-repl-choose-cache-control)
+    ("Authorization" . jss-http-repl-read-authorization)
+    ("Cache-Control" . jss-http-repl-read-cache-control)
     "Connection"
     "Cookie"
-    ("Content-Length" . jss-http-repl-set-content-length) "Content-MD5" "Content-Type"
+    ("Content-Length" . jss-http-repl-read-content-length) "Content-MD5"
+    ("Content-Type" . jss-http-repl-read-content-type)
     "Date"
     "Expect"
     "From"
@@ -291,6 +315,12 @@ simple insert is enough to insert a new header) and returns nil"
            (string= h header-name))
       (return nil)))))
 
+(defun jss-http-repl-request-read-header-value (header-name)
+  (let ((reader (jss-http-repl-request-header-editor header-name)))
+    (if reader
+        (funcall reader)
+      nil)))
+
 (defvar jss-http-repl-user-agents
   '(("IE 6" . "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)")
     ("IE 7" . "Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.0)")
@@ -312,18 +342,54 @@ simple insert is enough to insert a new header) and returns nil"
       ;; use whatever they sent.
       user-agent-name)))
 
-(defun jss-http-repl-choose-cache-control ()
+(defun jss-http-repl-read-cache-control ()
   (interactive)
   "no-cache")
 
-(defun jss-http-repl-set-content-length ()
+(defun jss-http-repl-read-content-length ()
   (interactive)
   (save-excursion
-    (format "%d" (string-bytes
-                  (buffer-substring-no-properties (jss-http-repl-goto-data-start)
-                                                  (point-max))))))
+    (jss-completing-read "Content-Length: " (list (format "%d" (string-bytes
+                                                                (buffer-substring-no-properties (jss-http-repl-goto-data-start)
+                                                                                                (point-max)))))
+                         :require-match nil)))
 
-(defun jss-http-repl-set-authorization (username password)
+(defcustom jss-http-repl-content-types '(("x-www-form-urlencoded" . "application/x-www-form-urlencoded; charset=us-ascii")
+                                         ("json" . "application/json; charset=utf-8")
+                                         ("text/plain" . "text/plain"))
+  "Predefined list of content types, an alist of label (used only to simplify input) and full value strings."
+  :type 'list
+  :group 'jss)
+
+(defun jss-http-repl-read-content-type ()
+  (interactive)
+  (let* ((type (jss-completing-read "Content-Type: " (mapcar 'car jss-http-repl-content-types)
+                                    :require-match nil))
+         (type-string (jss-if-bind (value-cons (cl-assoc type jss-http-repl-content-types :test 'string=))
+                        (cdr value-cons)
+                        type)))
+    
+    (save-match-data
+      (unless (string-match ".*;\\s-*charset=\\([a-zA-Z0-9-]+\\)" type-string)
+        (when (jss-yes-or-no-p "No charset detected, add utf-8? ")
+          (setf type-string (concat type-string "; charset=utf-8")))))
+
+    type-string))
+
+(defun jss-http-repl-request-encoding ()
+  (save-excursion
+    (save-match-data
+      (jss-if-bind (Content-Type (jss-http-repl-header-value "Content-Type"))
+          (if (string-match ".*;\\s-*charset=\\([-a-zA-Z0-9]+\\)" Content-Type)
+              (let ((charset (downcase (match-string-no-properties 1 Content-Type))))
+                (cond
+                 ((string= "utf-8" charset) 'utf-8-unix)
+                 ((string= "us-ascii" charset) 'us-ascii-unix)
+                 (t (error "Unrecognized charset in %s" Content-Type))))
+            nil)
+        nil))))
+
+(defun jss-http-repl-read-authorization (username password)
   (interactive (list (read-from-minibuffer "Username: ")
                      (read-from-minibuffer "Password: ")))
   (concat "Basic " (base64-encode-string (format "%s:%s" username password))))
@@ -386,7 +452,6 @@ simple insert is enough to insert a new header) and returns nil"
         (insert url))
       (insert "\n"))))
 
-(makunbound 'jss-http-repl-endpoint-regexp)
 (defvar jss-http-repl-endpoint-regexp
   (concat "Endpoint:\\s-*" jss-http-repl-request-method-regexp "\\s-+\\([^ \t]+?\\)\\(\\s-+HTTP/1\\.[01]\\)?\\s-*$")
   "Regexp which matches at the beginning of an endpoint line and binds, in two groups, the method and url.")
@@ -483,36 +548,75 @@ simple insert is enough to insert a new header) and returns nil"
 (defun jss-http-repl-preflight ()
   (unless (memq jss-http-repl-status '(:idle :closed))
     (error "Can't prepared a new request unless we're in editing mode. current mode is %s." jss-http-repl-status))
-  (let* ((data (buffer-substring-no-properties (jss-http-repl-goto-data-start)
-                                               (point-max)))
+  (let* ((data-string (buffer-substring-no-properties (jss-http-repl-goto-data-start)
+                                                      (point-max)))
+         (data-bytes nil)
          (endpoint (jss-http-repl-get-endpoint))
          (request-start (car (jss-find-property-block 'jss-http-repl-endpoint t)))
          (submitted-overlay (make-overlay request-start (point-max))))
 
     (unless endpoint
       (error "Missing endpoint data, don't where to send request."))
+
+    (when (string= "POST" (getf endpoint :method))
+
+      (unless (jss-http-repl-header-value "Content-Type")
+        (when (jss-yes-or-no-p "No Content-Type header found. Do you want to add one? ")
+          (jss-http-repl-goto-header-end)
+          (insert "Content-Type: " (jss-http-repl-read-content-type) "\n")))
+
+      (let ((effective-encoding nil))
+        
+        (jss-if-bind (encoding (jss-http-repl-request-encoding))
+            (setf effective-encoding encoding)
+          (warn "No encoding found, will assume utf-8-unix.")
+          (setf effective-encoding 'utf-8-unix))
+
+        (message "Encoding %s as %s." data-string effective-encoding)
+        (setf data-bytes (encode-coding-string data-string effective-encoding))
+        
+        (let* ((overwrite-content-length nil)
+               (data-binary-length (length data-bytes))
+               (content-length-string (jss-http-repl-header-value "Content-Length"))
+               (content-length (and content-length-string
+                                    (jss-parse-integer content-length-string))))
+
+          (cond
+           ((null content-length-string)
+            (when (jss-yes-or-no-p "No Content-Length header found, add one? ")
+              (setf overwrite-content-length t)))
+           ((not content-length)
+            (when (jss-yes-or-no-p "No Content-Length header's value is not a number. Reset? ")
+              (setf overwrite-content-length t)))
+           ((not (= content-length data-binary-length))
+            (when (jss-yes-or-no-p "No Content-Length header's value does not match current data. Reset? ")
+              (setf overwrite-content-length t))))
+
+          (when overwrite-content-length
+            (jss-http-repl-set-header "Content-Length" (format "%d" data-binary-length) )))))
     
     (overlay-put submitted-overlay 'face 'jss-http-repl-submitted-face)
     
-    (let ((inhibit-read-only t))
+    (let ((inhibit-read-only t)
+          ;; get the headers at the very end since we may have changed them.
+          (header-string (buffer-substring-no-properties (jss-http-repl-goto-header-start)
+                                                         (jss-http-repl-goto-header-end))))
       (remove-text-properties request-start (point-max)
                               (list 'jss-http-repl-endpoint t
                                     'jss-header-end-marker t
                                     'rear-nonsticky t
                                     'jss-http-repl-Request-Line t))
-      (add-text-properties request-start (point-max) (list 'read-only t)))
-    
-    (list* :ssl (string= "https" (getf endpoint :schema))
-           endpoint)))
+      (add-text-properties request-start (point-max) (list 'read-only t))
+      
+      (list* :ssl (string= "https" (getf endpoint :schema))
+             :header-string header-string
+             :data-string data-string
+             :data-bytes data-bytes
+             endpoint))))
 
 (defun jss-http-repl-send-request ()
   (interactive)
-  (apply 'jss-request-submit
-         :header-string (buffer-substring-no-properties (jss-http-repl-goto-header-start)
-                                                        (jss-http-repl-goto-header-end))
-         :data-string (buffer-substring-no-properties (jss-http-repl-goto-data-start)
-                                                      (point-max))
-         (jss-http-repl-preflight)))
+  (apply 'jss-request-submit (jss-http-repl-preflight)))
 
 (defun* jss-request-submit (&rest request-data)
   (setf jss-http-repl-previous-request-data request-data
@@ -535,12 +639,13 @@ simple insert is enough to insert a new header) and returns nil"
   (with-current-buffer (process-buffer proc)
     (cond
      ((string= "open\n" status)
-      (jss-http-repl-process-send-data)
-      (setf jss-http-repl-status :receiving-headers))
+      (jss-http-repl-process-send-data))
      ((cl-member status '("connection broken by remote peer\n" "deleted\n") :test 'string=)
       (message "Connection closed.")
       (setf jss-http-repl-status :closed
-            jss-http-repl-keep-alive nil))
+            jss-http-repl-keep-alive nil)
+      (when (memq jss-http-repl-status '(:receiving-headers :receiving-data))
+        (jss-http-repl-insert-next-request)))
      (t
       (message "%s got unknown sentinel status %s." proc status)))))
 
@@ -553,12 +658,15 @@ simple insert is enough to insert a new header) and returns nil"
         (insert "\n"))
       (insert "--response headers follow this line--\n")))
   (setf jss-http-repl-status :sending)
-  (destructuring-bind (&key header-string data-string &allow-other-keys)
+  (destructuring-bind (&key header-string data-bytes &allow-other-keys)
       jss-http-repl-previous-request-data
+    (message "Sending %s" (encode-coding-string header-string 'us-ascii-dos))
     (process-send-string proc (encode-coding-string header-string 'us-ascii-dos))
-    (when data-string
-      (process-send-string proc (jss-chars-to-string #x0d #x0a))
-      (process-send-string proc (encode-coding-string data-string 'utf-8-unix)))
+    (message "Sending %s" (jss-chars-to-string #x0d #x0a))
+    (process-send-string proc (jss-chars-to-string #x0d #x0a))
+    (when data-bytes
+      (message "Sending %s" data-bytes)
+      (process-send-string proc data-bytes))
     (setf jss-http-repl-status :receiving-headers)))
 
 (defun jss-http-repl-insert-next-request ()
@@ -578,7 +686,7 @@ simple insert is enough to insert a new header) and returns nil"
 
 (defun jss-http-repl-process-filter (proc output)
   (unless (memq jss-http-repl-status '(:receiving-headers :receiving-data))
-    (error "Process filter got unexpected data: %s" output))
+    (error "Process filter got unexpected data: %s (%s)" output jss-http-repl-status))
   (with-current-buffer (process-buffer proc)
     (save-match-data
       (goto-char (point-max))
@@ -594,7 +702,7 @@ simple insert is enough to insert a new header) and returns nil"
               (when (looking-at "Connection:\\s-*\\(.*\\)\\s-*$")
                 (setf jss-http-repl-keep-alive (string= "keep-alive" (downcase (match-string-no-properties 1)))))
               (when (looking-at "Content-Length:\\s-*\\([0-9]+\\)\\s-*$")
-                (setf jss-http-repl-content-length (string-to-number (match-string-no-properties 1))))
+                (setf jss-http-repl-content-length (jss-parse-integer (match-string-no-properties 1))))
               (when (and jss-http-repl-track-cookies
                          (looking-at (concat "Set-Cookie:\\s-*\\(.*\\)" (jss-chars-to-string #x0d #x0a))))
                 (push (match-string-no-properties 1) jss-http-repl-set-cookies))
