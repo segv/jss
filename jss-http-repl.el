@@ -574,7 +574,6 @@ simple insert is enough to insert a new header) and returns nil"
           (warn "No encoding found, will assume utf-8-unix.")
           (setf effective-encoding 'utf-8-unix))
 
-        (message "Encoding %s as %s." data-string effective-encoding)
         (setf data-bytes (encode-coding-string data-string effective-encoding))
         
         (let* ((overwrite-content-length nil)
@@ -626,7 +625,6 @@ simple insert is enough to insert a new header) and returns nil"
 
   (destructuring-bind (&key host port ssl &allow-other-keys)
       request-data
-    (message "Sending request to %s:%s." host port)
     (make-network-process :name "jss-http-repl-request"
                           :server nil
                           :host host
@@ -662,12 +660,9 @@ simple insert is enough to insert a new header) and returns nil"
   (setf jss-http-repl-status :sending)
   (destructuring-bind (&key header-string data-bytes &allow-other-keys)
       jss-http-repl-previous-request-data
-    (message "Sending %s" (encode-coding-string header-string 'us-ascii-dos))
     (process-send-string proc (encode-coding-string header-string 'us-ascii-dos))
-    (message "Sending %s" (jss-chars-to-string #x0d #x0a))
     (process-send-string proc (jss-chars-to-string #x0d #x0a))
     (when data-bytes
-      (message "Sending %s" data-bytes)
       (process-send-string proc data-bytes))
     (setf jss-http-repl-status :receiving-headers)))
 
