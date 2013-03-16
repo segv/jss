@@ -162,19 +162,13 @@
 
 (defun jss-io-clone-into-http-repl ()
   (interactive)
-  (message "Current buffer: %s" (current-buffer))
-  (message "Current window: %s" (get-buffer-window (current-buffer)))
-  (let ((raw-request-headers (jss-io-raw-request-headers (jss-current-io)))
-        (request-data (jss-io-request-data (jss-current-io)))
-        (url (url-generic-parse-url (jss-io-request-url (jss-current-io)))))
-    (jss-http-repl-new :headers raw-request-headers
-                       :data request-data
-                       :host (url-host url)
-                       :port (cond
-                              ((url-port url) (format "%d" (url-port url)))
-                              ((string= "http" (url-type url)) "80")
-                              ((string= "https" (url-type url)) "443")
-                              (t "80"))
-                       :ssl (string= "https" (url-type url)))))
+  (let ((jss-io (jss-current-io)))
+    (unless (jss-current-io)
+      (error "No IO object in this buffer."))
+    (switch-to-buffer-other-window
+     (jss-http-repl-new :header-string  (jss-io-raw-request-headers jss-io)
+                        :data-string  (jss-io-request-data jss-io)
+                        :url (jss-io-request-url jss-io)
+                        :method (jss-io-request-method jss-io)))))
 
 (provide 'jss-io)

@@ -113,14 +113,16 @@ but it can be used with any kind of HTTP request."
   "Face used to mark data that has been sent and is no longer editable.")
 
 (defun* jss-http-repl-new (&rest insert-args)
-  (interactive)
   (with-current-buffer (generate-new-buffer "*JSS HTTP REPL*")
     (jss-http-repl-mode)
     (apply 'jss-http-repl-insert-request insert-args)
     (when insert-args
       (jss-http-repl-goto-data-start))
-    (switch-to-buffer-other-window
-     (current-buffer))))
+    (current-buffer)))
+
+(defun jss-http-repl ()
+  (interactive)
+  (switch-to-buffer (jss-http-repl-new)))
 
 (defun* jss-http-repl-insert-request (&key header-string data-string url method http-version)
   ;; (declare (ignore ssl))
