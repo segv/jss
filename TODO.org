@@ -1,5 +1,6 @@
 #+TODO: TODO(t) | WILL_NOT_IMPLEMENT(w@) DONE(d@)
 
+* TODO show the source code of the first frame when the debugger pops up
 * TODO Implement firefox protocol
 
 The underlying communication code, opening the socket, writing and
