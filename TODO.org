@@ -8,13 +8,13 @@ messages, work, but the protocol itself still needs to be implemented.
 
 * TODO Implement the DOM inspector
 
-At the very least we want to get an emacs buffer with the dom layed
-out and formatted as the browser sees it. It'd also be very helpful if
-we could, from this buffer, trigger click / submit events, though I'm
-not sure if this is possible withotu having to send js to the remote
-browser (which i'd really rather not do).
+At the very least we want to get an emacs buffer with the dom as the
+browser sees it. It'd also be very helpful if we could, from this
+buffer, trigger click, submit or other events, though I'm not sure if
+this is possible without having to send js to the remote browser
+(which i'd really rather not do).
 
-* TODO Implement an function which also starts up a browser with the right args
+* TODO Implement a function which also starts up a browser with the right args
 
 If you're going to run the browser on the same machine as emacs it'd
 be pretty easy to check for browsers in a few common locations and, if
@@ -24,10 +24,10 @@ On firefox we'd still have the manual 'run script' step, not sure how
 to work around this.
 * TODO make most of the debugger buffer read-only
 
-currently non of it read only text and most of the momevment commands
-are single letters, but if you type the wrong command you'll end up
-just inserting that char and a) it's looks really ugly and b) it can
-break some of the 'find this block' code.
+currently none of it is read only text. Since most of the momevment
+commands are single letters, if you type the wrong command you'll end
+up just inserting that char and a) it's looks really ugly and b) it
+can break some of the 'find this block' code.
 * TODO visual indiction for sparse arrays.
 * TODO document the debugger's resume-points
 * TODO make the tab's url stay in sync with the browser
@@ -37,14 +37,10 @@ the auto-resume function jss-is-3rd-party-exception when we start from
 an empty tab and then go to our site and we think all our own code is
 3rd party :(
 
-* TODO report timing information in the IO buffer
-we already get a lot of into about when the requested started, how
-long we waited, how long it ttok to reiceve, etc. about a specific
-network IO. might as well display this info in the IO buffer.
 * TODO don't store tab-ids in text properties, store the tab objects themselves.
 We don't gain anything by having the level of indirection, and it's
 more code to implement in the api.
-* TODO implement real 'toogling' of Network.monitor
+* TODO implement real 'toggling' of Network.monitor
 
 the jss-generic-browser object should keep track of the state of the
 network monitor (assuming it can't ask the browser about it) and
@@ -83,3 +79,9 @@ sourec code (epecially 'cause they often look exactyl alike). We need
 a simple list of functions which, given a complete url and line/column
 numbers, return an emacs buffer we should visit instead of creating a
 ~*JSS Script*~ buffer.
+* DONE report timing information in the IO buffer
+  - State "DONE"       from "TODO"       [2013-03-16 Sat 14:29] \\
+    This is the 'Timing Data Log'. Given the amout of text this can generate it's controlled via the variable jss-console-log-timing-data)
+we already get a lot of into about when the requested started, how
+long we waited, how long it ttok to reiceve, etc. about a specific
+network IO. might as well display this info in the IO buffer.
