@@ -23,6 +23,8 @@ based javascript applications.
    syntax highlighting for html, css and js, and parsing/reindenting
    of json data)
 
+1. HTTP repl mode for testing and debugging ajax apis.
+
 1. Since its emacs the debugger and your editing environment are the
    same.
 
