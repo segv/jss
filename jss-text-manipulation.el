@@ -409,6 +409,15 @@ on the variable ido-mode."
          ,then
        ,@else)))
 
-(put 'jss-when-bind 'lisp-indent-function 1)
+(put 'jss-if-bind 'lisp-indent-function 2)
+
+(defun jss-yes-or-no-p (prompt)
+  (let ((response (jss-completing-read prompt (list "yes" "no") :require-match nil)))
+    (string= "yes" response)))
+
+(defun jss-parse-integer (string)
+  (save-match-data
+    (and (string-match "^[0-9]+$" string)
+         (string-to-number string))))
 
 (provide 'jss-text-manipulation)
