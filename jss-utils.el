@@ -1,4 +1,4 @@
-;;; jss-text-manipulation.el -- generic utilities for editing text (buttons, labels, sections, and stuff)
+;;; jss-utils.el -- generic utilities. buttons, labels, sections, a few macros and utility functions.
 ;;
 ;; Copyright (C) 2013 Edward Marco Baringer
 ;;
@@ -420,4 +420,4 @@ on the variable ido-mode."
     (and (string-match "^[0-9]+$" string)
          (string-to-number string))))
 
-(provide 'jss-text-manipulation)
+(provide 'jss-utils)

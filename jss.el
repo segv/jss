@@ -30,7 +30,7 @@
 (require 'eieio)
 (require 'json)
 
-(require 'jss-text-manipulation)
+(require 'jss-utils)
 (require 'jss-deferred)
 (require 'jss-browser-api)
 (require 'jss-script)
