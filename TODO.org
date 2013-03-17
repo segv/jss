@@ -1,11 +1,25 @@
 #+TODO: TODO(t) | WILL_NOT_IMPLEMENT(w@) DONE(d@)
 
-* TODO show the source code of the first frame when the debugger pops up
 * TODO Implement firefox protocol
 
 The underlying communication code, opening the socket, writing and
 messages, work, but the protocol itself still needs to be implemented.
 
+* TODO a button to add the current source position (url, line number, column number) to the list of resume points
+* TODO implement real 'toggling' of Network.monitor
+
+the jss-generic-browser object should keep track of the state of the
+network monitor (assuming it can't ask the browser about it) and
+provide a command to enable if it's curretly disabled or disable if
+it's current enabled.
+* TODO make most of the debugger buffer read-only
+
+currently none of it is read only text. Since most of the momevment
+commands are single letters, if you type the wrong command you'll end
+up just inserting that char and a) it's looks really ugly and b) it
+can break some of the 'find this block' code.
+* TODO show the source code of the first frame when the debugger pops up
+* TODO document the debugger's resume-points
 * TODO Implement the DOM inspector
 
 At the very least we want to get an emacs buffer with the dom as the
@@ -14,22 +28,8 @@ buffer, trigger click, submit or other events, though I'm not sure if
 this is possible without having to send js to the remote browser
 (which i'd really rather not do).
 
-* TODO Implement a function which also starts up a browser with the right args
-
-If you're going to run the browser on the same machine as emacs it'd
-be pretty easy to check for browsers in a few common locations and, if
-found, exec them with the required args.
-
-On firefox we'd still have the manual 'run script' step, not sure how
-to work around this.
-* TODO make most of the debugger buffer read-only
-
-currently none of it is read only text. Since most of the momevment
-commands are single letters, if you type the wrong command you'll end
-up just inserting that char and a) it's looks really ugly and b) it
-can break some of the 'find this block' code.
 * TODO visual indiction for sparse arrays.
-* TODO document the debugger's resume-points
+* TODO see if we can use emacs-web instead of implementing our own http client
 * TODO make the tab's url stay in sync with the browser
 we currently compute the tab's url at connect time, but if the tab
 navigates to another page we don't track that. this is a problem for
@@ -40,14 +40,15 @@ an empty tab and then go to our site and we think all our own code is
 * TODO don't store tab-ids in text properties, store the tab objects themselves.
 We don't gain anything by having the level of indirection, and it's
 more code to implement in the api.
-* TODO implement real 'toggling' of Network.monitor
-
-the jss-generic-browser object should keep track of the state of the
-network monitor (assuming it can't ask the browser about it) and
-provide a command to enable if it's curretly disabled or disable if
-it's current enabled.
 * TODO see why it gets so damn slow when there's a lot of IO logging.
-* TODO a button to add the current source position (url, line number, column number) to the list of resume points
+* TODO Implement a function which also starts up a browser with the right args
+
+If you're going to run the browser on the same machine as emacs it'd
+be pretty easy to check for browsers in a few common locations and, if
+found, exec them with the required args.
+
+On firefox we'd still have the manual 'run script' step, not sure how
+to work around this.
 * TODO slime like 'pop up windows'
 instead of using switch-to-buffer-other-window we should have a
 function which stores the current window configuration, then does
