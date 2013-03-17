@@ -115,10 +115,6 @@ jss-tab-connected-p will return nil)")
   "Creates a connection to `tab`, returns a deferred object which
 will complete when the connection has been established.")
 
-(defgeneric jss-tab-disconnect (tab)
-  "Disconnects from `tab`. Returns a deferred object which will
-complete when the connection has been closed.")
-
 (defgeneric jss-tab-make-console (tab &rest initargs)
   "Creates a console instance for `tab`, passing make-instance
 `initargs`. This method is basically a factory for browsers
