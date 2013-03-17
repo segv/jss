@@ -170,6 +170,20 @@ Note: See the manual for more details.
    object whose value lives inside the browser.  ~jss~ will insert
    buttons, which can be expanded, for this values.
 
+** Browser Specific Notes
+
+*** Tab Listing on Webkit
+
+Webkit does not always provide an id for a tab. If a given is not
+currently being debugged then jss is passed a, globally unique, url
+where we can connect the debugger; however if a given tab is being
+debugged (either via jss or in browser) then all we get back in the
+title and url, neither of which are guaranteed to be unique.
+
+For this reason tabs that are being debugged, either in browser or via
+jss, do not show up in the browser's buffer. Suggestion for how to
+deal with this are welcome.
+
 ** Hacking
 
 1. [[https://github.com/segv/jss/contributors][Contributors]]
