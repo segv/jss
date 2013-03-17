@@ -32,12 +32,6 @@
 (defmethod jss-webkit-remote-debugging-url ((browser jss-webkit-browser))
   (format "http://%s:%s/json" (jss-browser-host browser) (jss-browser-port browser)))
 
-(defmethod jss-browser-tabs ((browser jss-webkit-browser))
-  (mapcar 'cdr (slot-value browser 'tabs)))
-
-(defmethod jss-browser-find-tab ((browser jss-webkit-browser) tab-id)
-  (cdr (cl-assoc tab-id (slot-value browser 'tabs) :test 'string=)))
-
 (defmethod jss-browser-get-tabs ((browser jss-webkit-browser))
   (lexical-let ((d (make-jss-deferred))
                 (browser browser))

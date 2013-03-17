@@ -40,6 +40,7 @@ manually running jss-browser-mode-refresh (usually bound to
 \"g\") will required from time to time."
   ;; bound by caller
   (setf jss-current-browser-instance jss-browser)
+  (add-hook 'kill-buffer-hook 'jss-browser-kill-buffer nil t)
   (jss-browser-mode-refresh))
 
 (defun jss-browser-mode* (browser)
@@ -180,10 +181,14 @@ jump to its browser buffer."
     (assert browser-spec nil "Unable to find browser named %s" browser-spec)
     (let ((host (read-from-minibuffer "Host: " (jss-browser-spec-default-host browser-spec)))
           (port (read-from-minibuffer "Port: " (jss-browser-spec-default-port browser-spec))))
-      (with-current-buffer (get-buffer-create (format "*JSS Webkit @%s:%s*" host port))
+      (with-current-buffer (get-buffer-create (format "*JSS Browser @%s:%s*" host port))
         (switch-to-buffer (current-buffer))
         (jss-browser-mode* (make-instance (jss-browser-spec-class browser-spec)
                                           :host host
                                           :port port))))))
+
+(defun jss-browser-kill-buffer ()
+  (interactive)
+  (jss-browser-cleanup (jss-current-browser)))
 
 (provide 'jss-browser)

@@ -420,4 +420,20 @@ on the variable ido-mode."
     (and (string-match "^[0-9]+$" string)
          (string-to-number string))))
 
+(defclass jss-queue ()
+  ((list :initform '())))
+
+(defun make-jss-queue ()
+  (make-instance 'jss-queue))
+
+(defmethod jss-enqueue ((q jss-queue) item)
+  (message "Enqueing %s." item)
+  (setf (slot-value q 'list) (append (slot-value q 'list) (list item))))
+
+(defmethod jss-dequeue ((q jss-queue))
+  (pop (slot-value q 'list)))
+
+(defmethod jss-queue-empty-p ((q jss-queue))
+  (null (slot-value q 'list)))
+
 (provide 'jss-utils)
