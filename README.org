@@ -54,10 +54,10 @@ browser, making it too easy to open up is a huge security risk).
 
 Just pass the argument ~--remote-debugging-port=9222~ at startup.
 
-So, for chrome on linux this means:
+So, for chromium on linux this means:
 
 #+BEGIN_EXAMPLE
-google-chrome --remote-debugging-port=9222
+chromium --remote-debugging-port=9222
 #+END_EXAMPLE
 
 and for chrome on macs it's:
