@@ -44,7 +44,7 @@ possible implementations of the latter approach."))
                                  (list errorback)
                                '())))
 
-(defun* make-jss-completed-deferred (&key callback errorback)
+(defun* make-jss-completed-deferred (&optional callback errorback)
   "Create a deferred object which has already completed.
 
 Sometime we have to return a deferred but we've already done the

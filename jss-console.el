@@ -128,7 +128,7 @@ immediately if the connection already exsits)."
   (unless (jss-current-console)
     (error "No current console object. Can't open console here."))
   (if (jss-tab-connected-p (jss-current-tab))
-      (make-jss-completed-deferred :callback (jss-current-tab))
+      (make-jss-completed-deferred (jss-current-tab))
     (unless (jss-tab-connected-p (jss-current-tab))
       (jss-console-debug-message (jss-current-console) "Connecting...")
       (lexical-let ((buf (current-buffer)))
