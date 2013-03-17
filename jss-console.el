@@ -146,8 +146,11 @@ any necessary cleanup."
   (jss-when-bind (console (jss-current-console))
     (jss-when-bind (tab (jss-console-tab console))
       (jss-when-bind (browser (jss-tab-browser tab))
-        (jss-console-close console)
-        (jss-browser-refresh browser)))))
+        (lexical-let ((browser browser))
+          (jss-deferred-then
+           (jss-console-close console)
+           (lambda (console)
+             (jss-browser-refresh browser))))))))
 
 (defmethod jss-console-debug-message ((console jss-generic-console) &rest format-message-args)
   "Append a message, of priority \"debug\", to `console`."

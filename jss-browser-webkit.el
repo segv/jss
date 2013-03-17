@@ -656,7 +656,8 @@
   (let ((ws (slot-value (jss-console-tab console) 'websocket)))
     (when (websocket-openp ws)
       (jss-console-clear console)
-      (websocket-close ws))))
+      (websocket-close ws)))
+  (make-jss-completed-deferred console))
 
 (define-jss-webkit-notification-handler "Console.messageAdded" (message)
   (let* ((type (cdr (assoc 'type message)))

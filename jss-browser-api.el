@@ -234,9 +234,12 @@ and where its prompt lives.")
 Returns a deferred which will complete when the connection has
 been closed.")
 
-(defmethod jss-console-close :after ((console jss-generic-console))
-  (setf (jss-tab-console (jss-console-tab console)) nil
-        (jss-console-tab console) nil))
+(defmethod jss-console-close :around ((console jss-generic-console))
+  (jss-deferred-add-callback
+   (call-next-method)
+   (lambda (console)
+     (setf (jss-tab-console (jss-console-tab console)) nil
+           (jss-console-tab console) nil))))
 
 (defgeneric jss-console-insert-io (console io)
   "Insert into `console`'s log a link to the network io `io`")
