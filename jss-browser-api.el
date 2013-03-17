@@ -43,10 +43,6 @@ browser they're connected to.")
   "Returns a list of jss-generic-tab objects, one for each tab
 that was available when `jss-browser-get-tabs` was called.")
 
-(defmethod jss-browser-tabs ((browser jss-generic-browser))
-  "Assuming (slot-value browser 'tabs) is an alist of (tab-id . tab) reutrns the tabs."
-  (mapcar 'cdr (slot-value browser 'tabs)))
-
 (defgeneric jss-browser-find-tab (browser tab-id)
   "Given `tab-id`, an arbitrary opaque object returned by a
 previous call to jss-tab-id, returns the corresponding tab
@@ -58,12 +54,6 @@ object.
 
 No assumptions are made about the id objects themselves, except
 that they are globally unique.")
-
-(defmethod jss-browser-find-tab ((browser jss-generic-browser) tab-id)
-  "Assuming (slot-value browser 'tabs) is an alist of (tab-id
-  . tab) returns the tab with id `tab-id`, or nil if one does not
-  exist."
-  (cdr (cl-assoc tab-id (slot-value browser 'tabs) :test 'string=)))
 
 (defgeneric jss-browser-cleanup (browser)
   "Releases any state held by `browser`.")

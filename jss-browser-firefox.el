@@ -36,6 +36,12 @@
   (jss-when-bind (conn (jss-firefox-browser-connection browser))
     (jss-firefox-connection-cleanup (jss-firefox-browser-connection browser))))
 
+(defmethod jss-browser-find-tab ((browser jss-firefox-browser) tab-id)
+  (find tab-id (slot-value browser 'tabs) :key 'jss-tab-id :test 'string=))
+
+(defmethod jss-browser-tabs ((browser jss-firefox-browser))
+  (slot-value browser 'tabs))
+
 (defclass jss-firefox-tab (jss-generic-tab)
   ((properites :initarg :properties)))
 
@@ -184,8 +190,8 @@
                   if existing-tab
                     do (setf (slot-value existing-tab 'properites) properites)
                   else
-                    do (let ((tab (make-instance 'jss-firefox-tab :properties properites)))
-                         (push (cons (jss-tab-id tab) tab) (slot-value browser 'tabs)))
+                    do (push (make-instance 'jss-firefox-tab :properties properites)
+                             (slot-value browser 'tabs))
                   finally (jss-log-event (list :firefox :listTabs (jss-browser-tabs browser)))
                   finally (jss-deferred-callback tabs-deferred browser)))))))
     
