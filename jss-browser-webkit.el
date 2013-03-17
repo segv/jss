@@ -36,7 +36,7 @@
   (cdr (cl-assoc tab-id (slot-value browser 'tabs) :test 'string=)))
 
 (defmethod jss-browser-tabs ((browser jss-webkit-browser))
-  (mapcar 'car  (slot-value browser 'tabs)))
+  (mapcar 'cdr  (slot-value browser 'tabs)))
 
 (defmethod jss-browser-get-tabs ((browser jss-webkit-browser))
   (lexical-let ((d (make-jss-deferred))
