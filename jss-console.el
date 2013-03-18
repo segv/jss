@@ -186,10 +186,10 @@ any necessary cleanup."
           " // "))
 
 (defmethod jss-console-format-message ((console jss-generic-console) level format-string &rest format-args-and-properties)
-  "Insert a message, of the face correspoding to `level`, in the
-current buffer (which must be a console buffer). `format-string`
-and `format-args-and-properties` are passed to `format` to
-compute the text to be inserted.
+  "Insert a message, of the face correspoding to `level`, in
+`console`'s buffer. `format-string` and
+`format-args-and-properties` are passed to `format` to compute
+the text to be inserted.
 
 if `format-args-and-properties` contains a :properties <values>
 element then the text properites <values> will be added to the
