@@ -431,6 +431,15 @@ on the variable ido-mode."
     (and (string-match "^[0-9]+$" string)
          (string-to-number string))))
 
+(defmacro* jss-with-alist-values ((&rest keys) alist-form &body body)
+  (let ((alist-value (gensym)))
+    `(let ((,alist-value ,alist-form))
+       (let ,(mapcar (lambda (key)
+                       (list key `(cdr (assoc ',key ,alist-value))))
+                     keys)
+         ,@body))))
+(put 'jss-with-alist-values 'lisp-indent-function 2)
+
 (defclass jss-queue ()
   ((list :initform '())))
 
