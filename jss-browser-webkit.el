@@ -298,6 +298,18 @@
 
 (defvar jss-debugger-object-group-count 0)
 
+(defmethod jss-evaluate ((tab jss-webkit-tab) js-code)
+  (jss-deferred-then
+   (jss-webkit-send-request tab
+                            `("Runtime.evaluate"
+                              (expression . ,js-code)
+                              (objectGroup . ,(jss-webkit-object-group tab))
+                              (generatePreview . t)))
+   (lambda (result)
+     (make-jss-webkit-remote-object (cdr (assoc 'result result))))
+   (lambda (response)
+     (make-jss-webkit-evaluation-error response))))
+
 (defclass jss-webkit-debugger (jss-generic-debugger)
   ((object-group-id :initform (incf jss-debugger-object-group-count))
    (callFrames :initarg :callFrames :reader jss-debugger-stack-frames)
@@ -492,17 +504,8 @@
 (defmethod jss-webkit-object-group ((debugger jss-webkit-debugger))
   (format "jssDebuggerEvaluate_%d" (slot-value debugger 'object-group-id)))
 
-(defmethod jss-evaluate ((tab jss-webkit-tab) js-code)
-  (jss-deferred-then
-   (jss-webkit-send-request tab
-                            `("Runtime.evaluate"
-                              (expression . ,js-code)
-                              (objectGroup . ,(jss-webkit-object-group tab))
-                              (generatePreview . t)))
-   (lambda (result)
-     (make-jss-webkit-remote-object (cdr (assoc 'result result))))
-   (lambda (response)
-     (make-jss-webkit-evaluation-error response))))
+(defmethod jss-evaluate ((console jss-webkit-console) js-code)
+  (jss-evaluate (jss-console-tab console) js-code))
 
 (defclass jss-webkit-evaluation-error (jss-generic-remote-object)
   ((properties :initarg :properties)))

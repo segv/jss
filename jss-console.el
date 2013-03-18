@@ -58,9 +58,9 @@ expand objects while moving around the buffer."
   (setf jss-current-console-instance jss-console
         jss-current-tab-instance (jss-console-tab jss-console))
 
-  (lexical-let ((tab (jss-current-tab)))
+  (lexical-let ((console (jss-current-console)))
     (goto-char (jss-prompt-start-of-input
-                (jss-insert-prompt (lambda (text) (jss-evaluate tab text))))))
+                (jss-insert-prompt (lambda (text) (jss-evaluate console text))))))
   
   (jss-console-ensure-connection)
   t)
