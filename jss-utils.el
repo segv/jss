@@ -106,11 +106,22 @@ from `start` to `end`."
 
 (defun jss-log-event (event)
   "Debugger method, put some text describing `event` in the buffer *jss-events*"
-  (with-current-buffer (get-buffer-create " *jss-events*")
-    (insert (format ";; %s\n" (format-time-string "%Y-%m-%dT%T")))
-    (dolist (event-part event)
-      (insert (prin1-to-string event-part) "\n"))
-    (insert ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n")))
+  (let* ((buf-name " *jss-events*")
+         (buf (get-buffer buf-name)))
+    (when (null buf)
+      (setf buf (get-buffer-create buf-name))
+      (buffer-disable-undo buf))
+    (with-current-buffer buf
+      (insert (format ";; %s\n" (format-time-string "%Y-%m-%dT%T")))
+      (dolist (event-part event)
+        (insert (prin1-to-string event-part) "\n"))
+      (insert ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n")
+      ;; this buffer can get very, very long, limit it to 1024 chars
+      (forward-line -1024)
+      (beginning-of-line)
+      (let ((inhibit-read-only t))
+        (delete-region (point-min) (point)))
+      (goto-char (point-max)))))
 
 (defface jss-whitespace-mark-face '((t :inherit font-lock-comment-face))
   "Face user to mark significant whitespace.")
