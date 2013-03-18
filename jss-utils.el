@@ -447,7 +447,6 @@ on the variable ido-mode."
   (make-instance 'jss-queue))
 
 (defmethod jss-enqueue ((q jss-queue) item)
-  (message "Enqueing %s." item)
   (setf (slot-value q 'list) (append (slot-value q 'list) (list item))))
 
 (defmethod jss-dequeue ((q jss-queue))
