@@ -79,47 +79,57 @@ See `jss-browser-mode-refresh` for the actual implementation."
 available tabs, and reinsert buttons to consoles (if
 applicable)."
   (interactive)
-  (setf buffer-read-only t
-        (jss-browser-buffer (jss-current-browser)) (current-buffer))
-  (let ((inhibit-read-only t))
-    (jss-browser-delete-and-insert-header)
-    (insert (format "[ Connecting to %s:%s... ]"
-                    (jss-browser-host (jss-current-browser))
-                    (jss-browser-port (jss-current-browser)))))
-
-  (lexical-let ((jss-browser-buffer (current-buffer)))
-    (jss-deferred-add-backs
-     (jss-browser-get-tabs (jss-current-browser))
-     (lambda (browser)
-       (with-current-buffer jss-browser-buffer
-         (let ((inhibit-read-only t))
-           (jss-browser-delete-and-insert-header)
-           (if (jss-browser-tabs browser)
-               (progn
-                 (dolist (tab (jss-browser-tabs browser))
-                   (insert (format "%s.%s - %s\n" (jss-tab-id tab) (jss-tab-title tab) (jss-tab-url tab)))
-                   (when (jss-tab-available-p tab)
-                     (insert "  ")
-                     (jss-insert-button (if (jss-tab-console tab)
-                                            "[ goto console ]"
-                                          "[ open console ]")
-                                         'jss-tab-goto-console
-                                         :other-properties (list 'jss-tab-id (jss-tab-id tab)))
-                     (insert "\n")))
-                 (jss-browser-insert-help-topics)
-                 (goto-char (point-min))
-                 (jss-next-button))
-             (insert "No debuggable tabs found.")
-             (jss-browser-insert-help-topics)
-             (goto-char (point-min))))))
-     (lambda (error)
-       (with-current-buffer jss-browser-buffer
-         (let ((inhibit-read-only t))
-           (jss-browser-delete-and-insert-header)
-           (insert "\nConnection error:\n\n" (prin1-to-string error))
-           (jss-browser-insert-help-topics)
-           (goto-char (point-min))
-           (signal (first error) (rest error) )))))))
+  
+  (lexical-let* ((browser (jss-current-browser))
+                 (jss-browser-buffer (current-buffer))
+                 (tab-handler (lambda (browser)
+                                (with-current-buffer jss-browser-buffer
+                                  (let ((inhibit-read-only t))
+                                    (jss-browser-delete-and-insert-header)
+                                    (if (jss-browser-tabs browser)
+                                        (progn
+                                          (dolist (tab (jss-browser-tabs browser))
+                                            (insert (format "%s.%s - %s\n" (jss-tab-id tab) (jss-tab-title tab) (jss-tab-url tab)))
+                                            (when (jss-tab-available-p tab)
+                                              (insert "  ")
+                                              (jss-insert-button (if (jss-tab-console tab)
+                                                                     "[ goto console ]"
+                                                                   "[ open console ]")
+                                                                 'jss-tab-goto-console
+                                                                 :other-properties (list 'jss-tab-id (jss-tab-id tab)))
+                                              (insert "\n")))
+                                          (jss-browser-insert-help-topics)
+                                          (goto-char (point-min))
+                                          (jss-next-button))
+                                      (insert "No debuggable tabs found.")
+                                      (jss-browser-insert-help-topics)
+                                      (goto-char (point-min)))))))
+                 (tab-error-handler (lambda (error)
+                                      (with-current-buffer jss-browser-buffer
+                                        (let ((inhibit-read-only t))
+                                          (jss-browser-delete-and-insert-header)
+                                          (insert "\nConnection error:\n\n" (prin1-to-string error))
+                                          (jss-browser-insert-help-topics)
+                                          (goto-char (point-min))
+                                          (signal (first error) (rest error)))))))
+    (setf buffer-read-only t
+          (jss-browser-buffer browser) (current-buffer))
+      
+    (let ((inhibit-read-only t))
+      (jss-browser-delete-and-insert-header)
+      (insert (format "[ Connecting to %s:%s... ]"
+                      (jss-browser-host browser)
+                      (jss-browser-port browser))))
+    
+    (jss-deferred-then
+     (if (jss-browser-connected-p browser)
+         (make-jss-completed-deferred browser)
+       (jss-browser-connect browser))
+     (lambda (conn)
+       (jss-deferred-then
+        (jss-browser-get-tabs browser)
+        tab-handler
+        tab-error-handler)))))
 
 (defun jss-browser-insert-help-topics ()
   "Insert a list of links to the documentation for jss's main
