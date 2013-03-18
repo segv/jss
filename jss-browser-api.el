@@ -26,6 +26,17 @@
 can communicate with, and which, hopefully, has tabs we can
 attach a console to."))
 
+(defgeneric jss-browser-connected-p (browser)
+  "Returns T if we are currently connected to `browser`.")
+
+(defgeneric jss-browser-connect (browser)
+  "Connect to `browser`. Returns a deferred that will complete
+when the connection has been established.")
+
+(defgeneric jss-browser-disconnect (browser)
+  "Disconnect from `browser`. Returns a deferred that will
+complete when the connection has been broken.")
+
 (defgeneric jss-browser-get-tabs (browser)
   "Gets, and stores for later retrevial via `jss-browser-tabs`,
 the list of currently open tabs in in `brower`.

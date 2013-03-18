@@ -38,6 +38,18 @@
 (defmethod jss-browser-tabs ((browser jss-webkit-browser))
   (mapcar 'cdr  (slot-value browser 'tabs)))
 
+(defmethod jss-browser-connected-p ((browser jss-webkit-browser))
+  ;; in the webkit protocol we're acteally always (or never depending
+  ;; on how you want to look at it) connected. connect/disconnect
+  ;; doesn't really make any sense.
+  t)
+
+(defmethod jss-browser-connect ((browser jss-webkit-browser))
+  (make-jss-completed-deferred browser))
+
+(defmethod jss-browser-disconnect ((browser jss-webkit-browser))
+  (make-jss-completed-deferred browser))
+
 (defmethod jss-browser-get-tabs ((browser jss-webkit-browser))
   (lexical-let ((d (make-jss-deferred))
                 (browser browser))
