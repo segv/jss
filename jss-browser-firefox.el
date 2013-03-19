@@ -191,26 +191,27 @@
 (defun jss-firefox-process-filter (proc string)
   (jss-log-event (list :firefox :filter string))
   (when (buffer-live-p (process-buffer proc))
-    (with-current-buffer (process-buffer proc)
-      (let ((moving (= (point) (process-mark proc))))
-        (save-excursion
-          ;; Insert the text, advancing the process marker.
-          (goto-char (process-mark proc))
-          (insert string)
-          (set-marker (process-mark proc) (point)))
-        (if moving (goto-char (process-mark proc))))
-      (goto-char (point-min))
-      (while (not (eobp))
-        (if (looking-at "\\([0-9]+\\):")
-            (let ((length (string-to-number (match-string 1))))
+    (save-match-data
+      (with-current-buffer (process-buffer proc)
+        (goto-char (point-max))
+        (insert string)
+
+        (loop
+         do (goto-char (point-min))
+         when (eobp)
+           do (return t)
+         unless (looking-at "\\([0-9]+\\):")
+           do (error "jss process filter syntax error, message at %s does not start with \\d+" (point))
+         do (let ((prefix (match-string 0))
+                  (length (string-to-number (match-string 1))))
               (goto-char (match-end 0))
-              (if (= length (- (point-max) (point)))
+              (if (< length (- (point-max) (length prefix)))
                   (let ((json (json-read)))
-                    (delete-region (point-min) (point-max))
-                    (set-marker (process-mark proc) (point))
-                    (jss-firefox-handle-message jss-current-connection-instance json))
-                (jss-log-event (list :firefox :process-filter :message-incomplete))))
-          (error "Syntax error, message does not start with length marker."))))))
+                    (delete-region (point-min) (point))
+                    (jss-firefox-handle-message jss-current-connection-instance json)
+                    (goto-char (point-min)))
+                (jss-log-event (list :firefox :process-filter :message-incomplete))
+                (return nil))))))))
 
 (defun jss-firefox-process-sentinel (proc event)
   (jss-log-event (list :firefox :sentinel proc event))
@@ -320,20 +321,26 @@
 
 (defmethod jss-firefox-send-message ((actor jss-firefox-actor) type &rest other-arguments)
   (jss-log-event (list :firefox :send-message actor type other-arguments))
-  (when (eql :listening (jss-firefox-actor-state actor))
-    (error "Attempt to send message %s to %s but this actor is currently listening." type actor))
-  (unless (slot-boundp actor 'id)
-    (error "Attempt to send message %s to %s, but this actor has no id." type actor))
-  (let* ((deferred (make-jss-deferred))
-         (message (list* (cons "to" (jss-firefox-actor-id actor))
-                         (cons "type" type)
-                         (loop
-                          for (key value) on other-arguments by 'cddr
-                          collect (cons key value)))))
-    (jss-log-event (list :firefox :enqeue-message actor message))
-    (jss-enqueue (jss-firefox-actor-message-queue actor) (cons message deferred))
-    (jss-firefox-connection-process-next-message actor)
-    deferred))
+;  (when (eql :listening (jss-firefox-actor-state actor))
+;    (error "Attempt to send message %s to %s but this actor is currently listening." type actor))
+  (lexical-let ((previous-state (jss-firefox-actor-state actor)))
+    (setf (jss-firefox-actor-state actor) :idle)
+    (unless (slot-boundp actor 'id)
+      (error "Attempt to send message %s to %s, but this actor has no id." type actor))
+    (let* ((deferred (make-jss-deferred))
+           (message (list* (cons "to" (jss-firefox-actor-id actor))
+                           (cons "type" type)
+                           (loop
+                            for (key value) on other-arguments by 'cddr
+                            collect (cons key value)))))
+      (jss-log-event (list :firefox :enqeue-message actor message))
+      (jss-enqueue (jss-firefox-actor-message-queue actor) (cons message deferred))
+      (jss-firefox-connection-process-next-message actor)
+      (jss-deferred-add-callback
+       deferred
+       (lambda (value)
+         (setf (jss-firefox-actor-state actor) previous-state)))
+      deferred)))
 
 (defun jss-firefox-encode-json-message (object)
   (let ((json-false :json-false)
@@ -346,14 +353,14 @@
     (destructuring-bind (message . deferred)
         (jss-dequeue (jss-firefox-actor-message-queue actor))
       (let ((json (jss-firefox-encode-json-message message)))
-        (jss-log-event (list :firefox :process-message actor message json deferred))
+        (jss-log-event (list :firefox :process-message (jss-firefox-actor-id actor) message json deferred))
         (setf (jss-firefox-actor-state actor) :waiting
               (jss-firefox-actor-response-deferred actor) deferred)
         (jss-firefox-connection-send-string (jss-firefox-actor-connection actor) json)
         actor))))
 
 (defmethod jss-firefox-handle-message ((connection jss-firefox-connection) json)
-  (jss-log-event (list :firefox :handle-message json))
+  ;(jss-log-event (list :firefox :handle-message json))
   (jss-with-alist-values (from)
       json
     (let ((actor (gethash from (jss-firefox-connection-actors connection))))
@@ -397,6 +404,9 @@
    (Actor :accessor jss-firefox-tab-Actor)
    (ConsoleActor :accessor jss-firefox-tab-ConsoleActor)
    (ThreadActor :accessor jss-firefox-tab-ThreadActor)))
+
+(defmethod jss-firefox-register-actor ((tab jss-firefox-tab) actor)
+  (jss-firefox-register-actor (jss-tab-browser tab) actor))
 
 (defmethod shared-initialize :after ((tab jss-firefox-tab) slots)
   (when (and (slot-boundp tab 'browser)
@@ -456,7 +466,7 @@
                                     "listeners"
                                     requested-listeners)
           (lambda (response)
-            (jss-with-alist-values (startedListeners from)
+            (jss-with-alist-values (startedListeners)
                 response
               (unless (equal requested-listeners (cl-sort startedListeners 'string<))
                 (error "Not all listeners started, only: %s" startedListeners))
@@ -484,9 +494,93 @@
 
 (defclass jss-firefox-ConsoleActor (jss-firefox-actor)
   ())
+
 (defmethod jss-evaluate ((console jss-firefox-console) text)
-  (jss-firefox-send-message (jss-firefox-console-Actor console)
-                            "evaluateJS"
-                            "text" text))
+  (lexical-let* ((console console)
+                 (Actor (jss-firefox-console-Actor console))
+                 (connection (jss-firefox-actor-connection Actor )))
+    (jss-deferred-then
+     (jss-firefox-send-message Actor "evaluateJS" "text" text)
+     (lambda (response)
+       (jss-with-alist-values (input result error errorMessage helperResult)
+           response
+         (make-jss-firefox-remote-object connection result))))))
+
+(defclass jss-firefox-remote-object-mixin ()
+  ((Actor :initarg :Actor)
+   (properties :initarg :properties)))
+
+(defmethod jss-remote-object-class-name ((object jss-firefox-remote-object-mixin))
+  (cdr (assoc 'className (slot-value object 'properties))))
+
+(defmethod jss-remote-object-label ((object jss-firefox-remote-object-mixin))
+  (jss-firefox-remote-object-displayString object))
+
+(defmethod jss-firefox-remote-object-displayString ((object jss-firefox-remote-object-mixin))
+  (cdr (assoc 'displayString (slot-value object 'properties))))
+
+(defclass jss-firefox-remote-object (jss-generic-remote-object jss-firefox-remote-object-mixin)
+  ())
+
+(defclass jss-firefox-ObjectActor (jss-firefox-actor)
+  ())
+
+(defclass jss-firefox-remote-function (jss-generic-remote-function jss-firefox-remote-object-mixin)
+  ())
+
+(defmethod jss-remote-value-description ((function jss-firefox-remote-function))
+  (replace-regexp-in-string "[ \t\n\r\f]+"
+                            " "
+                            (jss-firefox-remote-object-displayString function)))
+
+(defun make-jss-firefox-remote-object (connection result)
+  (cond
+   ((numberp result)
+    (make-instance 'jss-generic-remote-number :value result))
+   ((stringp result)
+    (make-instance 'jss-generic-remote-string :value result))
+   ((eql t result)
+    (make-instance 'jss-generic-remote-true))
+   ((eql nil result)
+    (make-instance 'jss-generic-remote-no-value))
+   ((eql :json-false result)
+    (make-instance 'jss-generic-remote-false))
+   ((consp result)
+    (jss-with-alist-values (type className actor)
+        result
+      (cond
+       ((string= "function" type)
+        (make-instance 'jss-firefox-remote-function
+                       :Actor (jss-firefox-register-actor connection (make-instance 'jss-firefox-ObjectActor :id actor))
+                       :properties result))
+       ((string= "object" type)
+        (make-instance 'jss-firefox-remote-object
+                       :Actor (jss-firefox-register-actor connection (make-instance 'jss-firefox-ObjectActor :id actor))
+                       :properties result))
+       ((string= "null" type)
+        (make-instance 'jss-generic-remote-null))
+       ((string= "undefined" type)
+        (make-instance 'jss-generic-remote-undefined)))))))
+
+(defmethod jss-remote-object-get-properties ((object jss-firefox-remote-object-mixin) tab)
+  (lexical-let ((Actor (slot-value object 'Actor)))
+;     (if (cdr (assoc 'inspectable (slot-value object 'properties)))
+;         (jss-deferred-then
+;          (jss-firefox-send-message Actor "inspectProperties")
+;          (lambda (result)
+;            (jss-firefox-make-object-properties (jss-firefox-actor-connection Actor) (cdr (assoc 'properties result)))))
+;       (make-jss-completed-deferred '()))
+
+    (jss-deferred-then
+     (jss-firefox-send-message Actor "inspectProperties")
+     (lambda (result)
+       (jss-firefox-make-object-properties (jss-firefox-actor-connection Actor) (cdr (assoc 'properties result)))))
+    
+    ))
+
+(defun jss-firefox-make-object-properties (connection property-array)
+  (loop for p across property-array
+        collect (cons (cdr (assoc 'name p))
+                      (make-jss-firefox-remote-object connection (cdr (assoc 'value p))))))
 
 (provide 'jss-browser-firefox)

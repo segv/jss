@@ -466,14 +466,18 @@ jss-remote-value-description.")
 
 (defclass jss-generic-remote-object (jss-generic-remote-non-primitive) ())
 
+(defgeneric jss-remote-object-class-name (object))
+
+(defgeneric jss-remote-object-label (object))
+
 (defmethod jss-remote-value-description ((object jss-generic-remote-object))
-  (let ((class-name  (jss-remote-object-class-name object))
+  (let ((class-name (jss-remote-object-class-name object))
         (label  (jss-remote-object-label object)))
     (if (string= label class-name)
         (format "[%s]" label)
       (format "[%s %s]" class-name label))))
 
-(defmethod jss-remote-object-get-properties (object tab))
+(defgeneric jss-remote-object-get-properties (object tab))
 
 (defclass jss-generic-remote-function (jss-generic-remote-non-primitive) ())
 (defgeneric jss-remote-function-get-source-location (function))
