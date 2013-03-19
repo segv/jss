@@ -425,7 +425,9 @@
         (setf (jss-firefox-tab-Actor tab)
               (jss-firefox-register-actor browser (make-instance 'jss-firefox-TabActor :id actor))
               (jss-firefox-tab-ConsoleActor tab)
-              (jss-firefox-register-actor browser (make-instance 'jss-firefox-ConsoleActor :id consoleActor)))))))
+              (jss-firefox-register-actor browser (make-instance 'jss-firefox-ConsoleActor
+                                                                 :console (jss-tab-console tab)
+                                                                 :id consoleActor)))))))
 
 (defmethod jss-firefox-tab-property ((tab jss-firefox-tab) property-name)
   (cdr (assoc property-name (slot-value tab 'properites))))
