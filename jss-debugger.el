@@ -29,6 +29,22 @@ The debugger buffer then the current frames on the call stack and
 provides, for each frame, a link to the frame's source code and a
 prompt running in the frame's execution context.
 
+Use n (jss-frame-next) and p (jss-frame-previous) to move between
+frames, hit <return> on a frame to see its source location and
+its prompt (each frame has its own prompt which evaluates within
+the dynamic context of that frame). On a frame label hit
+s (jss-frame-goto-source) to visit the source code of the frame
+in a jss-script buffer.
+
+By default jss will create a new buffer, not attached to any
+file, containing the frame's source code, but see
+`jss-script-source-original-location-functions` for ways to map
+source urls to real files. Note: when using the source-location
+mapping jss will assume that the contents of the local file are
+what the server sees, but it will not check; it is the user's
+task to know out if the current contents of the buffer match what
+the server was given for that url at page/script load time.
+
 Most of the debugger keybindings are on single letter keys and
 are _not_ available when point is in a frame's prompt. Inside the
 prompt for a specific frame use jss-frame-previous (bound to C-c
