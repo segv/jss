@@ -68,7 +68,9 @@ and for chrome on macs it's:
 
 **** TODO Mozilla (firefox)
 
-NB: THIS DOES NOT YET WORK.
+NB: IN PROGESS. The Firefox protocol is still a work in progress,
+current we only support connecting to a tab and simple evaluation (no
+debugger, no network io tracking).
 
 In order to startup the debugger as a network server we have to run
 some javascript code in the browser, there's no simple command line
