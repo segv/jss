@@ -459,19 +459,31 @@
            response
          (unless (string= "tabAttached" type)
            (error "Unexpected response to %s.attach: %s" (jss-tab-id tab) response))
-         (setf (jss-firefox-tab-ThreadActor tab) (jss-firefox-register-actor (jss-tab-browser tab) (make-instance 'jss-firefox-ThreadActor :id threadActor)))
-         (jss-deferred-then
-          (jss-firefox-send-message (jss-firefox-console-Actor (jss-tab-console tab))
-                                    "startListeners"
-                                    "listeners"
-                                    requested-listeners)
-          (lambda (response)
-            (jss-with-alist-values (startedListeners)
-                response
-              (unless (equal requested-listeners (cl-sort startedListeners 'string<))
-                (error "Not all listeners started, only: %s" startedListeners))
-              (jss-firefox-actor-start-listening (jss-firefox-tab-ConsoleActor tab))
-              (jss-deferred-callback deferred tab)))))))
+         (lexical-let ((ThreadActor (make-instance 'jss-firefox-ThreadActor :id threadActor)))
+           (setf (jss-firefox-tab-ThreadActor tab)
+                 (jss-firefox-register-actor (jss-tab-browser tab) ThreadActor))
+           (jss-deferred-then
+            (jss-firefox-send-message ThreadActor "attach")
+            (lambda (response)
+              (unless (and (string= "paused" (cdr (assoc 'type response)))
+                           (cdr (assoc 'type (cdr (assoc 'why response))))
+                           (string= "attached" (cdr (assoc 'type (cdr (assoc 'why response))))))
+                (error "Unexpected response from attach message: %s." response))
+              (jss-deferred-then
+               (jss-firefox-send-message ThreadActor "resume" "pauseOnExceptions" t)
+               (lambda (response)
+                 (jss-deferred-then
+                  (jss-firefox-send-message (jss-firefox-console-Actor (jss-tab-console tab))
+                                            "startListeners"
+                                            "listeners"
+                                            requested-listeners)
+                  (lambda (response)
+                    (jss-with-alist-values (startedListeners)
+                        response
+                      (unless (equal requested-listeners (cl-sort startedListeners 'string<))
+                        (error "Not all listeners started, only: %s" startedListeners))
+                      (jss-firefox-actor-start-listening (jss-firefox-tab-ConsoleActor tab))
+                      (jss-deferred-callback deferred tab))))))))))))
     deferred))
 
 (defclass jss-firefox-TabActor (jss-firefox-actor)
