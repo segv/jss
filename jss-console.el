@@ -148,8 +148,10 @@ any necessary cleanup."
       (jss-when-bind (browser (jss-tab-browser tab))
         (lexical-let ((browser browser))
           (jss-deferred-then
-           (jss-console-close console)
+           (jss-console-disconnect console)
            (lambda (console)
+             (setf (jss-tab-console (jss-console-tab console)) nil
+                   (jss-console-tab console) nil)
              (jss-browser-refresh browser))))))))
 
 (defmethod jss-console-debug-message ((console jss-generic-console) &rest format-message-args)

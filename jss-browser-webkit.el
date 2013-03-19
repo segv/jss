@@ -667,7 +667,7 @@
                                           (cons 'objectGroup (jss-webkit-object-group console)))
                                     "Failed to cleanup object group %s" (jss-webkit-object-group console)))
 
-(defmethod jss-console-close ((console jss-webkit-console))
+(defmethod jss-console-disconnect ((console jss-webkit-console))
   (let ((ws (slot-value (jss-console-tab console) 'websocket)))
     (when (websocket-openp ws)
       (jss-console-clear console)

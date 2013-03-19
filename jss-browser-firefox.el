@@ -504,7 +504,7 @@
 (defmethod jss-tab-make-console ((tab jss-firefox-tab) &rest initargs)
   (apply 'make-instance jss-firefox-console initargs))
 
-(defmethod jss-console-close ((console jss-firefox-console))
+(defmethod jss-console-disconnect ((console jss-firefox-console))
   (make-jss-completed-deferred console))
 
 (defclass jss-firefox-actor-with-console-mixin ()

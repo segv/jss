@@ -235,18 +235,11 @@ and where its prompt lives.")
   (get-buffer-create
    (format "*JSS Console/%s*" (jss-tab-id (jss-console-tab console)))))
 
-(defgeneric jss-console-close (console)
+(defgeneric jss-console-disconnect (console)
   "Close the connection between jss and the console `console`.
 
 Returns a deferred which will complete when the connection has
 been closed.")
-
-(defmethod jss-console-close :around ((console jss-generic-console))
-  (jss-deferred-add-callback
-   (call-next-method)
-   (lambda (console)
-     (setf (jss-tab-console (jss-console-tab console)) nil
-           (jss-console-tab console) nil))))
 
 (defgeneric jss-console-insert-io (console io)
   "Insert into `console`'s log a link to the network io `io`")
