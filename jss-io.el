@@ -18,7 +18,21 @@
 ;; MA 02111-1307 USA
 
 (define-derived-mode jss-io-mode jss-super-mode "JSS IO"
-  ""
+  "Major mode for viewing network transactions (HTTP
+request-response pairs) between the browser and the server(s).
+
+The mode is fairly simple, it serves only to present information
+about the request and the response in a useful way. Each set of
+headers is in its own section, by default invisibile but RET on
+the section label will show it.
+
+The request data is also in its own section and is shown exactly
+as it was sent to the server.
+
+If jss has a pretty-printer for the response's content-type (as
+we do for html, css, js and json data) it will be preprocessed
+and shown in a, hopefully, more convenient form. Use the [view
+raw] button to show the actual bytes sent back from the server."
   (setf jss-current-io-object jss-io
         (jss-io-buffer jss-io) (current-buffer))
 
