@@ -116,11 +116,6 @@ from `start` to `end`."
       (dolist (event-part event)
         (insert (prin1-to-string event-part) "\n"))
       (insert ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n")
-      ;; this buffer can get very, very long, limit it to 1024 chars
-      (forward-line -1024)
-      (beginning-of-line)
-      (let ((inhibit-read-only t))
-        (delete-region (point-min) (point)))
       (goto-char (point-max)))))
 
 (defface jss-whitespace-mark-face '((t :inherit font-lock-comment-face))
