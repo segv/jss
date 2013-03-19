@@ -49,6 +49,7 @@
 
 ;;; :idle -> send-message -> :waiting -> handle-message -> :idle
 
+
 ;;; :idle -> start-listening -> :listening
 
 ;;; :listening -> stop-listening -> :idle
@@ -506,8 +507,8 @@
 (defmethod jss-console-close ((console jss-firefox-console))
   (make-jss-completed-deferred console))
 
-(defmethod jss-firefox-actor-with-console-mixin ()
-  (console :accessor jss-firefox-ConsoleActor-console :initarg :console))
+(defclass jss-firefox-actor-with-console-mixin ()
+  ((console :accessor jss-firefox-ConsoleActor-console :initarg :console)))
 
 (defclass jss-firefox-ConsoleActor (jss-firefox-actor jss-firefox-actor-with-console-mixin)
   ())
