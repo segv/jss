@@ -321,7 +321,7 @@
     (error "Actor is not ready to handle messages (current state is :idle).")))
 
 (defmethod jss-firefox-send-message ((actor jss-firefox-actor) type &rest other-arguments)
-  (jss-log-event (list :firefox :send-message actor type other-arguments))
+  ; (jss-log-event (list :firefox :send-message actor type other-arguments))
 ;  (when (eql :listening (jss-firefox-actor-state actor))
 ;    (error "Attempt to send message %s to %s but this actor is currently listening." type actor))
   (lexical-let ((previous-state (jss-firefox-actor-state actor)))
@@ -334,7 +334,6 @@
                            (loop
                             for (key value) on other-arguments by 'cddr
                             collect (cons key value)))))
-      (jss-log-event (list :firefox :enqeue-message actor message))
       (jss-enqueue (jss-firefox-actor-message-queue actor) (cons message deferred))
       (jss-firefox-connection-process-next-message actor)
       (jss-deferred-add-callback
