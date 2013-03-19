@@ -492,8 +492,42 @@
 (defmethod jss-console-close ((console jss-firefox-console))
   (make-jss-completed-deferred console))
 
-(defclass jss-firefox-ConsoleActor (jss-firefox-actor)
+(defmethod jss-firefox-actor-with-console-mixin ()
+  (console :accessor jss-firefox-ConsoleActor-console :initarg :console))
+
+(defclass jss-firefox-ConsoleActor (jss-firefox-actor jss-firefox-actor-with-console-mixin)
   ())
+
+(defclass jss-firefox-NetworkEvent (jss-firefox-actor jss-firefox-actor-with-console-mixin)
+  ())
+
+(defclass jss-firefox-PageError (jss-firefox-actor jss-firefox-actor-with-console-mixin)
+  ())
+
+(defmethod jss-firefox-actor-handle-event ((ConsoleActor jss-firefox-ConsoleActor) event)
+  (jss-with-alist-values (type)
+      event
+    (cond
+     ((string= type "networkEvent")
+      (jss-with-alist-values (actor)
+          (cdr (assoc 'eventActor event))
+        (jss-firefox-register-actor (jss-firefox-actor-connection ConsoleActor)
+                                    (make-instance 'jss-firefox-NetworkEvent
+                                                   :console (jss-firefox-ConsoleActor-console actor)
+                                                   :id actor
+                                                   :state :listening))))
+     ((string= type "pageError")
+      (jss-with-alist-values (actor)
+          (cdr (assoc 'pageError event))
+        (jss-firefox-register-actor (jss-firefox-actor-connection ConsoleActor)
+                                    (make-instance 'jss-firefox-PageError
+                                                   :console (jss-firefox-ConsoleActor-console actor)
+                                                   :id actor
+                                                   :state :listening))))
+     ((string= type "locationChange")
+      (jss-with-alist-values (url title state)
+          event
+        )))))
 
 (defmethod jss-evaluate ((console jss-firefox-console) text)
   (lexical-let* ((console console)
