@@ -155,7 +155,8 @@
 
 (defmethod jss-browser-connect ((browser jss-firefox-browser))
   (lexical-let ((browser browser)
-                (RootActor (make-instance 'jss-firefox-RootActor)))
+                (RootActor (make-instance 'jss-firefox-RootActor
+                                          :state :listening)))
     (let* ((conn (make-instance 'jss-firefox-connection
                                 :browser browser
                                 :host (jss-browser-host browser)
@@ -173,8 +174,7 @@
          ;; firefox will always send us an unsolicited 'hello' message
          ;; when the connection opens, so setup a handler for it (it's
          ;; only after this message that we can start sending requests).
-         (setf (jss-firefox-browser-RootActor browser) (jss-firefox-register-actor browser RootActor))
-         (jss-firefox-actor-start-listening RootActor)))
+         (setf (jss-firefox-browser-RootActor browser) (jss-firefox-register-actor browser RootActor))))
 
       (jss-deferred-then
        (jss-firefox-connection-close-deferred conn)
@@ -292,6 +292,7 @@
    (response-deferred :accessor jss-firefox-actor-response-deferred :initform nil)
    (state :accessor jss-firefox-actor-state
           :initform :idle
+          :initarg :state
           :documentation "Either :idle, :waiting or :listening.")))
 
 (defmethod jss-firefox-register-actor ((connection jss-firefox-connection) actor)
