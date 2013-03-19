@@ -314,7 +314,7 @@ back (from the old start to where `body` left point)"
       (insert-and-inherit thing)
     (funcall thing)))
 
-(cl-defun jss-toggling-visibility (header body &key (initially-visibile nil))
+(defun* jss-toggling-visibility (header body &key (initially-visibile nil))
   (let (header-start
         header-end
         body-start
