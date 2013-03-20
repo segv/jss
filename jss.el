@@ -22,7 +22,7 @@
   t)
 
 (define-key jss-super-mode-map (kbd "<tab>") 'jss-next-button)
-(define-key jss-super-mode-map (kbd "<S-tab>") 'jss-previous-button)
+(define-key jss-super-mode-map (kbd "<backtab>") 'jss-previous-button)
 
 (require 'easymenu)
 ;(require 'js2-mode)
