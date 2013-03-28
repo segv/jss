@@ -475,6 +475,7 @@
               (jss-deferred-then
                (jss-firefox-send-message ThreadActor "resume" "pauseOnExceptions" t)
                (lambda (response)
+                 (jss-firefox-actor-start-listening ThreadActor)
                  (jss-deferred-then
                   (jss-firefox-send-message (jss-firefox-console-Actor (jss-tab-console tab))
                                             "startListeners"
