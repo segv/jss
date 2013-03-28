@@ -507,9 +507,11 @@ simple insert is enough to insert a new header) and returns nil"
 
 (defun jss-http-repl-update-inferred-headers ()
   (when (looking-at jss-http-repl-endpoint-regexp)
-    (let* ((method (match-string-no-properties 1))
-           (url    (match-string-no-properties 2))
+    (let* ((inhibit-read-only t)
+
+           (method (match-string-no-properties 1))
            ;; nb: url-generic-parse-url will change match data :(
+           (url    (match-string-no-properties 2))
            (http-version (match-string-no-properties 3))
            (url    (url-generic-parse-url url)))
       (jss-http-repl-goto-header-start)
@@ -559,7 +561,8 @@ simple insert is enough to insert a new header) and returns nil"
         (when (jss-http-repl-in-header-line "Host")
           (let ((loc (jss-find-property-block 'jss-http-repl-auto-host-line t :error nil)))
             (when loc
-              (remove-text-properties (car loc) (cdr loc) (list 'jss-http-repl-auto-host-line t)))))
+              (let ((inhibit-read-only t))
+                (remove-text-properties (car loc) (cdr loc) (list 'jss-http-repl-auto-host-line t))))))
         
         (when (<= change-end (point))
           (return))
