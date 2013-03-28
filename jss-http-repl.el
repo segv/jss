@@ -139,9 +139,9 @@ but it can be used with any kind of HTTP request."
       (jss-http-repl-goto-data-start))
     (current-buffer)))
 
-(defun jss-http-repl ()
+(defun jss-http-repl (&optional initial-endpoint)
   (interactive)
-  (switch-to-buffer (jss-http-repl-new)))
+  (switch-to-buffer (jss-http-repl-new :method "GET" :url initial-endpoint)))
 
 (defun* jss-http-repl-insert-request (&key header-string data-string url method http-version)
   ;; (declare (ignore ssl))
