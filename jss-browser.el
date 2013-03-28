@@ -175,7 +175,7 @@ objects they need, and the default connection parameters."))
 
 (defvar jss-connect/select-browser-history '())
 
-(defun jss-connect (browser-label)
+(defun* jss-connect (browser-label &key host port)
   "Query the user for a browser type, a host, and a port, and
 jump to its browser buffer."
   (interactive (list (let ((completion-ignore-case t))
@@ -189,8 +189,8 @@ jump to its browser buffer."
                                         'jss-connect/select-browser-history))))
   (let ((browser-spec (find browser-label jss-browsers :key 'jss-browser-spec-label :test 'string=)))
     (assert browser-spec nil "Unable to find browser named %s" browser-spec)
-    (let ((host (read-from-minibuffer "Host: " (jss-browser-spec-default-host browser-spec)))
-          (port (read-from-minibuffer "Port: " (jss-browser-spec-default-port browser-spec))))
+    (let ((host (or host (read-from-minibuffer "Host: " (jss-browser-spec-default-host browser-spec))))
+          (port (or port (read-from-minibuffer "Port: " (jss-browser-spec-default-port browser-spec)))))
       (with-current-buffer (get-buffer-create (format "*JSS Browser @%s:%s*" host port))
         (switch-to-buffer (current-buffer))
         (jss-browser-mode* (make-instance (jss-browser-spec-class browser-spec)
