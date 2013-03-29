@@ -209,6 +209,7 @@
               (if (< length (- (point-max) (length prefix)))
                   (let ((json (json-read)))
                     (delete-region (point-min) (point))
+                    (jss-log-event (list :firefox :handle-message json))
                     (jss-firefox-handle-message jss-current-connection-instance json)
                     (goto-char (point-min)))
                 (jss-log-event (list :firefox :process-filter :message-incomplete))
@@ -393,6 +394,7 @@
                  (jss-firefox-actor-response-deferred actor) nil)
            (jss-deferred-callback deferred json)))
         (:listening
+         (jss-log-event (list :firefox :unsolicited-event actor json))
          (jss-firefox-actor-handle-event actor json))))))
 
 (defclass jss-firefox-RootActor (jss-firefox-actor)
