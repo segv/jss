@@ -519,6 +519,11 @@
 (defclass jss-firefox-NetworkEvent (jss-firefox-actor jss-firefox-actor-with-console-mixin)
   ())
 
+(defmethod jss-firefox-actor-handle-event ((NetworkEvent jss-firefox-NetworkEvent) event)
+  (jss-firefox-event-type-ecase (event)
+    ("networkEventUpdate"
+     (jss-console-log-message (jss-firefox-ConsoleActor-console NetworkEvent) "%s: %s" (cdr (assoc 'updateType event)) event))))
+
 (defclass jss-firefox-PageError (jss-firefox-actor jss-firefox-actor-with-console-mixin)
   ())
 
