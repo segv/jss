@@ -422,12 +422,10 @@
       (message "actor: %s, consoleActor: %s" actor consoleActor)
       
       (let ((browser (jss-tab-browser tab)))
-          
         (setf (jss-firefox-tab-Actor tab)
-              (jss-firefox-register-actor browser (make-instance 'jss-firefox-TabActor :id actor))
+              (jss-firefox-register-actor browser (make-instance 'jss-firefox-TabActor :id actor :tab tab))
               (jss-firefox-tab-ConsoleActor tab)
               (jss-firefox-register-actor browser (make-instance 'jss-firefox-ConsoleActor
-                                                                 :console (jss-tab-console tab)
                                                                  :id consoleActor)))))))
 
 (defmethod jss-firefox-tab-property ((tab jss-firefox-tab) property-name)
@@ -455,6 +453,9 @@
   (lexical-let ((tab tab)
                 (deferred (make-jss-deferred))
                 (requested-listeners ["ConsoleAPI" "FileActivity" "LocationChange" "NetworkActivity" "PageError"]))
+    ;; setup the console link because we need toh ConsoleActor before we have the jss-generic-console object
+    (setf (jss-firefox-ConsoleActor-console (jss-firefox-tab-ConsoleActor tab)) (jss-tab-console tab))
+    ;; create the chain of deferreds to actually perform the connection steps in order
     (jss-deferred-then
      (jss-firefox-send-message (jss-firefox-tab-Actor tab) "attach")
      (lambda (response)
@@ -462,6 +463,7 @@
            response
          (unless (string= "tabAttached" type)
            (error "Unexpected response to %s.attach: %s" (jss-tab-id tab) response))
+         (jss-firefox-actor-start-listening (jss-firefox-tab-Actor tab))
          (lexical-let ((ThreadActor (make-instance 'jss-firefox-ThreadActor :id threadActor)))
            (setf (jss-firefox-tab-ThreadActor tab)
                  (jss-firefox-register-actor (jss-tab-browser tab) ThreadActor))
