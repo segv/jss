@@ -321,6 +321,21 @@
   (when (eql :idle (jss-firefox-actor-state actor))
     (error "Actor is not ready to handle messages (current state is :idle).")))
 
+(defmethod jss-firefox-actor-handle-event ((actor jss-firefox-actor) event-json)
+  (error "Actor %s has no handle-event method (got event %s)." actor event-json))
+
+(defmacro* jss-firefox-event-type-ecase ((event) &rest clauses)
+  (let ((e (gensym)))
+    `(let ((,e ,event))
+       (cond
+        ,@(loop for (type . body) in clauses
+                for types = (if (listp type) type (list type))
+                collect (list* `(or ,@(loop for type in types collect `(string= ,type (cdr (assoc 'type ,e)))))
+                               body))
+        (t
+         (error "Unknown message type %s in event %s." (cdr (assoc 'type ,e)) ,e))))))
+(put 'jss-firefox-event-type-ecase 'lisp-indent-function 1)
+
 (defmethod jss-firefox-send-message ((actor jss-firefox-actor) type &rest other-arguments)
   ; (jss-log-event (list :firefox :send-message actor type other-arguments))
 ;  (when (eql :listening (jss-firefox-actor-state actor))
@@ -431,11 +446,20 @@
 (defmethod jss-firefox-tab-property ((tab jss-firefox-tab) property-name)
   (cdr (assoc property-name (slot-value tab 'properites))))
 
+(defmethod jss-firefox-tab-set-property ((tab jss-firefox-tab) property-name property-value)
+  (setf (cdr (assoc property-name (slot-value tab 'properites))) property-value))
+
 (defmethod jss-tab-url ((tab jss-firefox-tab))
   (jss-firefox-tab-property tab 'url))
 
+(defmethod jss-tab-set-url ((tab jss-firefox-tab) url)
+  (jss-firefox-tab-set-property tab 'url url))
+
 (defmethod jss-tab-title ((tab jss-firefox-tab))
   (jss-firefox-tab-property tab 'title))
+
+(defmethod jss-tab-set-title ((tab jss-firefox-tab) title)
+  (jss-firefox-tab-set-property tab 'title title))
 
 (defmethod jss-tab-id ((tab jss-firefox-tab))
   (jss-firefox-actor-id (jss-firefox-tab-Actor tab)))
@@ -493,10 +517,18 @@
     deferred))
 
 (defclass jss-firefox-TabActor (jss-firefox-actor)
-  ())
+  ((tab :accessor jss-firefox-TabActor-tab :initarg :tab)))
+
+(defmethod jss-firefox-actor-handle-event ((actor jss-firefox-TabActor) event)
+  (jss-firefox-event-type-ecase (event)
+    ("tabNavigated" (jss-console-log-message (jss-tab-console (jss-firefox-TabActor-tab actor)) "Navigated to %s" (cdr (assoc 'url event))))))
 
 (defclass jss-firefox-ThreadActor (jss-firefox-actor)
   ())
+
+(defmethod jss-firefox-actor-handle-event ((actor jss-firefox-ThreadActor) event)
+  (jss-firefox-event-type-ecase (event)
+    ("newGlobal" (message "newGlobal message. what do we do now?"))))
 
 (defclass jss-firefox-console (jss-generic-console)
   ())
@@ -528,29 +560,32 @@
   ())
 
 (defmethod jss-firefox-actor-handle-event ((ConsoleActor jss-firefox-ConsoleActor) event)
-  (jss-with-alist-values (type)
-      event
-    (cond
-     ((string= type "networkEvent")
-      (jss-with-alist-values (actor)
-          (cdr (assoc 'eventActor event))
-        (jss-firefox-register-actor (jss-firefox-actor-connection ConsoleActor)
-                                    (make-instance 'jss-firefox-NetworkEvent
-                                                   :console (jss-firefox-ConsoleActor-console actor)
-                                                   :id actor
-                                                   :state :listening))))
-     ((string= type "pageError")
-      (jss-with-alist-values (actor)
-          (cdr (assoc 'pageError event))
-        (jss-firefox-register-actor (jss-firefox-actor-connection ConsoleActor)
-                                    (make-instance 'jss-firefox-PageError
-                                                   :console (jss-firefox-ConsoleActor-console actor)
-                                                   :id actor
-                                                   :state :listening))))
-     ((string= type "locationChange")
-      (jss-with-alist-values (url title state)
-          event
-        )))))
+  (unless  (jss-firefox-ConsoleActor-console ConsoleActor)
+    (error "ConsoleActor without a console. die. %s" ConsoleActor))
+  (let* ((console (jss-firefox-ConsoleActor-console ConsoleActor))
+         (tab (jss-console-tab console)))
+    (labels ((get-actor-id (actor-type)
+                           (cdr (assoc 'actor (cdr (assoc actor-type event)))))
+             (register-actor (class &rest make-instance-args)
+                             (jss-firefox-register-actor (jss-firefox-actor-connection ConsoleActor)
+                                                         (apply 'make-instance
+                                                                class
+                                                                :console console
+                                                                make-instance-args))))
+      (jss-firefox-event-type-ecase (event)
+        ("networkEvent" 
+         (register-actor 'jss-firefox-NetworkEvent
+                         :id (get-actor-id 'eventActor)
+                         :state :listening))
+        ("pageError"
+         (register-actor  'jss-firefox-PageError
+                          :id (get-actor-id 'pageError)
+                          :state :listening))
+        ("locationChange"
+         (jss-with-alist-values (uri title state)
+             event
+           (jss-tab-set-url tab uri)
+           (jss-tab-set-title tab title)))))))
 
 (defmethod jss-evaluate ((console jss-firefox-console) text)
   (lexical-let* ((console console)
