@@ -246,8 +246,8 @@
   t)
 
 (defmethod jss-firefox-connection-connect ((conn jss-firefox-connection))
-   (when (slot-boundp conn 'proc)
-     (error "Attempting to connect to %s but it already has a process." conn))
+  (when (slot-boundp conn 'proc)
+    (error "Attempting to connect to %s but it already has a process." conn))
   (with-slots (host port proc open-deferred close-deferred)
       conn
    
@@ -490,7 +490,7 @@
   (lexical-let ((tab tab)
                 (deferred (make-jss-deferred))
                 (requested-listeners ["ConsoleAPI" "FileActivity" "LocationChange" "NetworkActivity" "PageError"]))
-    ;; setup the console link because we need toh ConsoleActor before we have the jss-generic-console object
+    ;; setup the console link because we need the ConsoleActor before we have the jss-generic-console object
     (setf (jss-firefox-ConsoleActor-console (jss-firefox-tab-ConsoleActor tab)) (jss-tab-console tab))
     ;; create the chain of deferreds to actually perform the connection steps in order
     (jss-deferred-then
