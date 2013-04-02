@@ -308,15 +308,16 @@
 (defmethod jss-firefox-register-actor ((browser jss-firefox-browser) actor)
   (jss-firefox-register-actor (jss-firefox-browser-connection browser) actor))
 
+(defun jss-firefox-actor-state-transition (actor from to)
+  (if (eql from (jss-firefox-actor-state actor))
+      (setf (jss-firefox-actor-state actor) to)
+    (error "Invalid state transition for actor. Current state is %s (not %s), can not go to %s." (jss-firefox-actor-state actor) from to)))
+
 (defmethod jss-firefox-actor-start-listening ((actor jss-firefox-actor))
-  (if (eql :idle (jss-firefox-actor-state actor))
-      (setf (jss-firefox-actor-state actor) :listening)
-    (error "Actor has message in transit (current state %s), can't start listening now." (jss-firefox-actor-state actor))))
+  (jss-firefox-actor-state-transition actor :idle :listening))
 
 (defmethod jss-firefox-actor-stop-listening ((actor jss-firefox-actor))
-  (if (eql :listening (jss-firefox-actor-state actor))
-      (setf (jss-firefox-actor-state actor) :idle)
-    (error "Actor is not currently listing (current state %s), can't stop." (jss-firefox-actor-state actor))))
+  (jss-firefox-actor-state-transition actor :listening :idle))
 
 (defmethod jss-firefox-actor-handle-event :before ((actor jss-firefox-actor) event-json)
   (when (eql :idle (jss-firefox-actor-state actor))
