@@ -422,7 +422,9 @@
   ((properites :initarg :properties)
    (Actor :accessor jss-firefox-tab-Actor)
    (ConsoleActor :accessor jss-firefox-tab-ConsoleActor)
-   (ThreadActor :accessor jss-firefox-tab-ThreadActor)))
+   (ThreadActor :accessor jss-firefox-tab-ThreadActor)
+
+   (scripts :accessor jss-firefox-tab-scripts :initform (make-hash-table))))
 
 (defmethod jss-firefox-register-actor ((tab jss-firefox-tab) actor)
   (jss-firefox-register-actor (jss-tab-browser tab) actor))
@@ -531,7 +533,19 @@
 
 (defmethod jss-firefox-actor-handle-event ((actor jss-firefox-ThreadActor) event)
   (jss-firefox-event-type-ecase (event)
-    ("newGlobal" (message "newGlobal message. what do we do now?"))))
+    ("newGlobal" (message "newGlobal message. what do we do now?"))
+    ("newScript"
+     (jss-with-alist-values (source startLine lineCount url) event
+       (message "newScript %s." source)
+       (let ((tab (jss-firefox-tab-scripts (jss-firefox-ThreadActor-tab actor))))
+         (setf (gethash source tab) (make-instance 'jss-firefox-script
+                                                   :tab tab
+                                                   :id source
+                                                   :url url)))))))
+
+(defclass jss-firefox-script (jss-generic-script)
+  ((id :accessor jss-script-id :initarg :id)
+   (url :accessor jss-script-url :initarg :url)))
 
 (defclass jss-firefox-console (jss-generic-console)
   ())
