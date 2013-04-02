@@ -491,7 +491,7 @@
          (unless (string= "tabAttached" type)
            (error "Unexpected response to %s.attach: %s" (jss-tab-id tab) response))
          (jss-firefox-actor-start-listening (jss-firefox-tab-Actor tab))
-         (lexical-let ((ThreadActor (make-instance 'jss-firefox-ThreadActor :id threadActor)))
+         (lexical-let ((ThreadActor (make-instance 'jss-firefox-ThreadActor :id threadActor :tab tab)))
            (setf (jss-firefox-tab-ThreadActor tab)
                  (jss-firefox-register-actor (jss-tab-browser tab) ThreadActor))
            (jss-deferred-then
@@ -527,7 +527,7 @@
     ("tabNavigated" (jss-console-log-message (jss-tab-console (jss-firefox-TabActor-tab actor)) "Navigated to %s" (cdr (assoc 'url event))))))
 
 (defclass jss-firefox-ThreadActor (jss-firefox-actor)
-  ())
+  ((tab :accessor jss-firefox-ThreadActor-tab :initarg :tab)))
 
 (defmethod jss-firefox-actor-handle-event ((actor jss-firefox-ThreadActor) event)
   (jss-firefox-event-type-ecase (event)
