@@ -768,20 +768,11 @@
     (setf (jss-tab-get-io tab requestId) io)
     (jss-console-insert-request console io)))
 
-(defmacro with-existing-io (io-id &rest body)
-  `(let ((io (jss-tab-get-io tab ,io-id)))
-     (if io
-         (progn ,@body)
-       (jss-log-event (list :webkit-io
-                            :unknown-requestId
-                            ,io-id)))))
-(put 'with-existing-io 'lisp-indent-function 1)
-
 (defun jss-nconc-item (list item)
   (setf (cdr (last list)) (list item)))
 
 (define-jss-webkit-notification-handler "Network.dataReceived" (requestId timestamp dataLength encodedDataLength)
-  (with-existing-io requestId
+  (with-existing-io (tab requestId)
     (jss-nconc-item (jss-io-lifecycle io)
                     (list :data-received (seconds-to-time timestamp)
                           :data-length dataLength
@@ -789,7 +780,7 @@
     (jss-console-update-request-message console io)))
 
 (define-jss-webkit-notification-handler "Network.loadingFailed" (requestId timestamp errorText canceled)
-  (with-existing-io requestId
+  (with-existing-io (tab requestId)
     (jss-nconc-item (jss-io-lifecycle io)
                     (list :loading-failed (seconds-to-time timestamp)
                           :error-text errorText
@@ -797,7 +788,7 @@
     (jss-console-update-request-message console io)))
 
 (define-jss-webkit-notification-handler "Network.loadingFinished" (requestId timestamp)
-  (with-existing-io requestId
+  (with-existing-io (tab requestId)
     (jss-nconc-item (jss-io-lifecycle io)
                     (list :loading-finished (seconds-to-time timestamp)))
     (lexical-let ((io io)
@@ -812,12 +803,12 @@
     (jss-console-update-request-message console io)))
 
 (define-jss-webkit-notification-handler "Network.requestServedFromCache" (requestId)
-  (with-existing-io requestId
+  (with-existing-io (tab requestId)
     (jss-nconc-item (jss-io-lifecycle io) (list :served-from-cache nil))
     (jss-console-update-request-message console io)))
 
 (define-jss-webkit-notification-handler "Network.requestServedFromMemoryCache" (requestId loaderId documentURL timestamp initiator resource)
-  (with-existing-io requestId
+  (with-existing-io (tab requestId)
     (jss-nconc-item (jss-io-lifecycle io)
                     (list :served-from-memory-cache (seconds-to-time timestamp)
                           :loader-id loaderId
@@ -827,7 +818,7 @@
     (jss-console-update-request-message console io)))
 
 (define-jss-webkit-notification-handler "Network.responseReceived" (requestId loaderId timestamp type response)
-  (with-existing-io requestId
+  (with-existing-io (tab requestId)
     (jss-nconc-item (jss-io-lifecycle io)
                     (list :response-received (seconds-to-time timestamp)
                           :loader-id loaderId

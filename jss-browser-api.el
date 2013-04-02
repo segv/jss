@@ -256,6 +256,13 @@ been closed.")
   (:documentation "An object that describes a single
 request/response between the browser and a server."))
 
+(defmacro* with-existing-io ((tab io-id) &rest body)
+  `(let ((io (jss-tab-get-io ,tab ,io-id)))
+     (if io
+         (progn ,@body)
+       (jss-log-event (list :io :unknown-io-io ,io-id)))))
+(put 'with-existing-io 'lisp-indent-function 1)
+
 (defgeneric jss-io-id (io)
   "Returns a globally unique id identifying `io`.")
 
