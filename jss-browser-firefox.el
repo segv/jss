@@ -150,6 +150,14 @@
    
    (actors :initform (make-hash-table :test 'equal) :accessor jss-firefox-connection-actors)))
 
+(defmethod jss-firefox-connection-disconnect ((conn jss-firefox-connection))
+  (message "Closing firefox connection to %s:%s" (slot-value conn 'host) (slot-value conn 'port))
+  (unless (slot-boundp conn 'proc)
+    (error "Attempting to disconnect connection %s but the proc slot is not bound."))
+  (unless (slot-value conn 'proc)
+    (error "Attempting to disconnect connection %s but the connection has no slot."))
+  (delete-process (slot-value conn 'proc)))
+
 (make-variable-buffer-local
  (defvar jss-current-connection-instance nil
    "The current, firefox, connection attached to a process."))
