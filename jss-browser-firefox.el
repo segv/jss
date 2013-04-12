@@ -334,13 +334,15 @@
 (defmethod jss-firefox-actor-handle-event ((actor jss-firefox-actor) event-json)
   (error "Actor %s has no handle-event method (got event %s)." actor event-json))
 
-(defmacro* jss-firefox-event-type-ecase ((event) &rest clauses)
-  (let ((e (gensym)))
-    `(let ((,e ,event))
+(defmacro* jss-firefox-event-type-ecase ((event &key (key ''type)) &rest clauses)
+  (let ((e (gensym))
+        (k (gensym)))
+    `(let ((,e ,event)
+           (,k ,key))
        (cond
         ,@(loop for (type . body) in clauses
                 for types = (if (listp type) type (list type))
-                collect (list* `(or ,@(loop for type in types collect `(string= ,type (cdr (assoc 'type ,e)))))
+                collect (list* `(or ,@(loop for type in types collect `(string= ,type (cdr (assoc ,k ,e)))))
                                body))
         (t
          (error "Unknown message type %s in event %s." (cdr (assoc 'type ,e)) ,e))))))
@@ -529,12 +531,15 @@
                       (jss-deferred-callback deferred tab))))))))))))
     deferred))
 
-(defclass jss-firefox-TabActor (jss-firefox-actor)
-  ((tab :accessor jss-firefox-TabActor-tab :initarg :tab)))
+(defclass jss-firefox-tab-actor-mixin ()
+  ((tab :accessor jss-firefox-actor-tab :initarg :tab)))
+
+(defclass jss-firefox-TabActor (jss-firefox-actor jss-firefox-tab-actor-mixin)
+  ())
 
 (defmethod jss-firefox-actor-handle-event ((actor jss-firefox-TabActor) event)
   (jss-firefox-event-type-ecase (event)
-    ("tabNavigated" (jss-console-log-message (jss-tab-console (jss-firefox-TabActor-tab actor)) "Navigated to %s" (cdr (assoc 'url event))))))
+    ("tabNavigated" (jss-console-log-message (jss-tab-console (jss-firefox-actor-tab actor)) "Navigated to %s" (cdr (assoc 'url event))))))
 
 (defclass jss-firefox-ThreadActor (jss-firefox-actor)
   ((tab :accessor jss-firefox-ThreadActor-tab :initarg :tab)))
@@ -573,16 +578,71 @@
 (defclass jss-firefox-ConsoleActor (jss-firefox-actor jss-firefox-actor-with-console-mixin)
   ())
 
-(defclass jss-firefox-NetworkEvent (jss-firefox-actor jss-firefox-actor-with-console-mixin)
+(defclass jss-firefox-NetworkEvent (jss-firefox-actor jss-firefox-actor-with-console-mixin jss-firefox-tab-actor-mixin)
   ())
+
+(defclass jss-firefox-io (jss-generic-io)
+  ((NetworkActor :initarg :NetworkActor :accessor jss-generic-io-NetworkActor)
+   (request-method :initarg :request-method :accessor jss-io-request-method)
+   (url :initarg :url :accessor jss-io-request-url)
+
+   (status :accessor jss-io-response-status)
+   (statusText)
+   (headersSize)
+   (discardResponseBody)))
+
+(defmethod jss-io-id ((io jss-firefox-io))
+  (jss-firefox-actor-id (jss-generic-io-NetworkActor io)))
 
 (defmethod jss-firefox-actor-handle-event ((NetworkEvent jss-firefox-NetworkEvent) event)
   (jss-firefox-event-type-ecase (event)
     ("networkEventUpdate"
-     (jss-console-log-message (jss-firefox-ConsoleActor-console NetworkEvent) "%s: %s" (cdr (assoc 'updateType event)) event))))
+     (with-existing-io ((jss-firefox-actor-tab NetworkEvent) (jss-firefox-actor-id NetworkEvent))
+       (jss-firefox-event-type-ecase (event :key 'updateType)
+         ("eventTimings")
+         ("requestHeaders")
+         ("requestCookies")
+         ("responseHeaders")
+         ("responseCookies")
+         ("responseContent")
+         ("responseStart"
+          (jss-with-alist-values (response)
+              event       
+            (push (list :data-received (current-time)) (jss-io-lifecycle io))
+            (jss-with-alist-values (httpVersion status statusText headersSize discardResponseBody)
+                response
+              (setf (slot-value io 'status) status
+                    (slot-value io 'statusText) statusText
+                    (slot-value io 'headersSize) headersSize
+                    (slot-value io 'discardResponseBody) discardResponseBody))
+            (jss-console-update-request-message (jss-firefox-ConsoleActor-console NetworkEvent) io)))))
+     ;(jss-console-log-message (jss-firefox-ConsoleActor-console NetworkEvent) "%s: %s" (cdr (assoc 'updateType event)) event)
+     )))
 
 (defclass jss-firefox-PageError (jss-firefox-actor jss-firefox-actor-with-console-mixin)
   ())
+
+(defun jss-js-time-to-emacs-time (js-time-string)
+  (save-match-data
+    ;; 2013-04-02T10:12:11.554Z
+    (unless (string-match "^\\([0-9]+\\)-\\([0-9]+\\)-\\([0-9]+\\)T\\([0-9]+\\):\\([0-9]+\\):\\([0-9]+.[0-9]+\\)Z$" js-time-string)
+      (error "%s is not a js-time-string." js-time-string))
+    (let ((year (match-string 1 js-time-string))
+          (month (match-string 2 js-time-string))
+          (day (match-string 3 js-time-string))
+          (hours (match-string 4 js-time-string))
+          (minutes (match-string 5 js-time-string))
+          (seconds (match-string 6 js-time-string)))
+      ;; do this as encode(decode + seconds) because seconds
+      ;; is a floting point numebr and we don't want to implement the
+      ;; bit twiddling ourselves.
+      (seconds-to-time (+ (time-to-seconds (encode-time 0
+                                                        (string-to-number minutes)
+                                                        (string-to-number hours)
+                                                        (string-to-number day)
+                                                        (string-to-number month)
+                                                        (string-to-number year)))
+                          (string-to-number seconds))))))
 
 (defmethod jss-firefox-actor-handle-event ((ConsoleActor jss-firefox-ConsoleActor) event)
   (unless  (jss-firefox-ConsoleActor-console ConsoleActor)
@@ -598,10 +658,20 @@
                                                                 :console console
                                                                 make-instance-args))))
       (jss-firefox-event-type-ecase (event)
-        ("networkEvent" 
-         (register-actor 'jss-firefox-NetworkEvent
-                         :id (get-actor-id 'eventActor)
-                         :state :listening))
+        ("networkEvent"
+         (jss-with-alist-values (eventActor) event
+           (jss-with-alist-values (method url startedDateTime) eventActor
+             (let* ((actor (register-actor 'jss-firefox-NetworkEvent
+                                           :id (get-actor-id 'eventActor)
+                                           :tab tab
+                                           :state :listening))
+                    (io (make-instance 'jss-firefox-io
+                                       :NetworkActor actor
+                                       :request-method method
+                                       :url url
+                                       :lifecycle (list (list :sent (jss-js-time-to-emacs-time startedDateTime))))))
+               (setf (jss-tab-get-io tab (get-actor-id 'eventActor)) io)
+               (jss-console-insert-request console io)))))
         ("pageError"
          (register-actor  'jss-firefox-PageError
                           :id (get-actor-id 'pageError)
