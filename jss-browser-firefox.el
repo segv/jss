@@ -94,6 +94,10 @@
 ;;; 
 ;;;   must follow aTabActor.attach (i think)
 
+(require 'eieio)
+(require 'json)
+(require 'jss-browser-api)
+
 (defclass jss-firefox-browser (jss-generic-browser)
   ((connection :accessor jss-firefox-browser-connection :initform nil)
    (RootActor :accessor jss-firefox-browser-RootActor)
@@ -153,14 +157,31 @@
 (defmethod jss-firefox-connection-disconnect ((conn jss-firefox-connection))
   (message "Closing firefox connection to %s:%s" (slot-value conn 'host) (slot-value conn 'port))
   (unless (slot-boundp conn 'proc)
-    (error "Attempting to disconnect connection %s but the proc slot is not bound."))
+    (error "Attempting to disconnect connection %s but the proc slot is not bound." conn))
   (unless (slot-value conn 'proc)
-    (error "Attempting to disconnect connection %s but the connection has no slot."))
+    (error "Attempting to disconnect connection %s but the connection has no slot." conn))
   (delete-process (slot-value conn 'proc)))
 
 (make-variable-buffer-local
  (defvar jss-current-connection-instance nil
    "The current, firefox, connection attached to a process."))
+
+(defclass jss-firefox-actor ()
+  ((id :accessor jss-firefox-actor-id :initarg :id)
+   (connection :accessor jss-firefox-actor-connection :initarg :connection)
+   (message-queue :accessor jss-firefox-actor-message-queue :initform (make-jss-queue))
+   (response-deferred :accessor jss-firefox-actor-response-deferred :initform nil)
+   (state :accessor jss-firefox-actor-state
+          :initform :idle
+          :initarg :state
+          :documentation "Either :idle, :waiting or :listening.")))
+
+(defclass jss-firefox-RootActor (jss-firefox-actor)
+  ((ready-deferred :initform (make-jss-deferred) :accessor jss-firefox-RootActor-ready-deferred)))
+
+(defmethod shared-initialize :after ((actor jss-firefox-RootActor) slot-names)
+  (unless (slot-boundp actor 'id)
+    (setf (jss-firefox-actor-id actor) "root")))
 
 (defmethod jss-browser-connect ((browser jss-firefox-browser))
   (lexical-let ((browser browser)
@@ -233,11 +254,11 @@
         (setf state (cond
                      ((string= "open\n" event)
                       (unless (eql nil state)
-                        (error "Invalid state transition. Was %s but got a %s event on %s.") state event proc)
+                        (error "Invalid state transition. Was %s but got a %s event on %s." state event proc))
                       :open)
                      ((cl-member event '("deleted\n" "finished\n" "connection broken by remote peer\n") :test 'string=)
                       (unless (eql :open state)
-                        (error "Invalid state transition. Was %s but got a %s event on %s.") state event proc)
+                        (error "Invalid state transition. Was %s but got a %s event on %s." state event proc))
                       :closed)
                      (t (error "Unknown process event %s" (prin1-to-string event)))))
         (ecase state
@@ -275,8 +296,8 @@
 
 (defmethod jss-firefox-connection-on-open ((conn jss-firefox-connection))
   (unless (slot-boundp conn 'open-deferred)
-    (error "Connection %s has opened, but no open-deferred availble. state mis-match?"))
-  (jss-deferred-callback (slot-value conn 'open-deferred) connection)
+    (error "Connection %s has opened, but no open-deferred availble. state mis-match?" conn))
+  (jss-deferred-callback (slot-value conn 'open-deferred) conn)
   (slot-makeunbound conn 'open-deferred))
 
 (defmethod jss-firefox-connection-on-close ((conn jss-firefox-connection))
@@ -294,16 +315,6 @@
 
     (jss-deferred-callback close-deferred connection)
     (slot-makeunbound conn 'close-deferred)))
-
-(defclass jss-firefox-actor ()
-  ((id :accessor jss-firefox-actor-id :initarg :id)
-   (connection :accessor jss-firefox-actor-connection :initarg :connection)
-   (message-queue :accessor jss-firefox-actor-message-queue :initform (make-jss-queue))
-   (response-deferred :accessor jss-firefox-actor-response-deferred :initform nil)
-   (state :accessor jss-firefox-actor-state
-          :initform :idle
-          :initarg :state
-          :documentation "Either :idle, :waiting or :listening.")))
 
 (defmethod jss-firefox-register-actor ((connection jss-firefox-connection) actor)
   (when (jss-firefox-actor-connection actor)
@@ -393,7 +404,7 @@
       json
     (let ((actor (gethash from (jss-firefox-connection-actors connection))))
       (unless actor
-        (error "Got message %s but don't have an actor with id %s."))
+        (error "Got message %s but don't have an actor with id %s." json from))
       (ecase (jss-firefox-actor-state actor)
         (:idle
          (error "Got message %s for %s, but actor's state is :idle." json actor))
@@ -407,13 +418,6 @@
         (:listening
          (jss-log-event (list :firefox :unsolicited-event actor json))
          (jss-firefox-actor-handle-event actor json))))))
-
-(defclass jss-firefox-RootActor (jss-firefox-actor)
-  ((ready-deferred :initform (make-jss-deferred) :accessor jss-firefox-RootActor-ready-deferred)))
-
-(defmethod shared-initialize :after ((actor jss-firefox-RootActor) slot-names)
-  (unless (slot-boundp actor 'id)
-    (setf (jss-firefox-actor-id actor) "root")))
 
 (defmethod jss-firefox-actor-handle-event ((actor jss-firefox-RootActor) event)
   (jss-with-alist-values (applicationType traits)
@@ -488,6 +492,18 @@
 (defmethod jss-tab-connected-p ((tab jss-firefox-tab))
   (eql :listening (jss-firefox-actor-state (jss-firefox-tab-ConsoleActor tab))))
 
+(defclass jss-firefox-actor-with-console-mixin ()
+  ((console :accessor jss-firefox-ConsoleActor-console :initarg :console)))
+
+(defclass jss-firefox-ConsoleActor (jss-firefox-actor jss-firefox-actor-with-console-mixin)
+  ())
+
+(defclass jss-firefox-tab-actor-mixin ()
+  ((tab :accessor jss-firefox-actor-tab :initarg :tab)))
+
+(defclass jss-firefox-NetworkEvent (jss-firefox-actor jss-firefox-actor-with-console-mixin jss-firefox-tab-actor-mixin)
+  ())
+
 (defmethod jss-tab-connect ((tab jss-firefox-tab))
   (lexical-let ((tab tab)
                 (deferred (make-jss-deferred))
@@ -531,9 +547,6 @@
                       (jss-deferred-callback deferred tab))))))))))))
     deferred))
 
-(defclass jss-firefox-tab-actor-mixin ()
-  ((tab :accessor jss-firefox-actor-tab :initarg :tab)))
-
 (defclass jss-firefox-TabActor (jss-firefox-actor jss-firefox-tab-actor-mixin)
   ())
 
@@ -572,15 +585,6 @@
 (defmethod jss-console-disconnect ((console jss-firefox-console))
   (make-jss-completed-deferred console))
 
-(defclass jss-firefox-actor-with-console-mixin ()
-  ((console :accessor jss-firefox-ConsoleActor-console :initarg :console)))
-
-(defclass jss-firefox-ConsoleActor (jss-firefox-actor jss-firefox-actor-with-console-mixin)
-  ())
-
-(defclass jss-firefox-NetworkEvent (jss-firefox-actor jss-firefox-actor-with-console-mixin jss-firefox-tab-actor-mixin)
-  ())
-
 (defclass jss-firefox-io (jss-generic-io)
   ((NetworkActor :initarg :NetworkActor :accessor jss-generic-io-NetworkActor)
    (request-method :initarg :request-method :accessor jss-io-request-method)
@@ -615,7 +619,7 @@
                     (slot-value io 'statusText) statusText
                     (slot-value io 'headersSize) headersSize
                     (slot-value io 'discardResponseBody) discardResponseBody))
-            (jss-console-update-request-message (jss-firefox-ConsoleActor-console NetworkEvent) io)))))
+            (jss-console-update-io (jss-firefox-ConsoleActor-console NetworkEvent) io)))))
      ;(jss-console-log-message (jss-firefox-ConsoleActor-console NetworkEvent) "%s: %s" (cdr (assoc 'updateType event)) event)
      )))
 
@@ -649,14 +653,14 @@
     (error "ConsoleActor without a console. die. %s" ConsoleActor))
   (let* ((console (jss-firefox-ConsoleActor-console ConsoleActor))
          (tab (jss-console-tab console)))
-    (labels ((get-actor-id (actor-type)
-                           (cdr (assoc 'actor (cdr (assoc actor-type event)))))
-             (register-actor (class &rest make-instance-args)
-                             (jss-firefox-register-actor (jss-firefox-actor-connection ConsoleActor)
-                                                         (apply 'make-instance
-                                                                class
-                                                                :console console
-                                                                make-instance-args))))
+    (cl-labels ((get-actor-id (actor-type)
+                              (cdr (assoc 'actor (cdr (assoc actor-type event)))))
+                (register-actor (class &rest make-instance-args)
+                                (jss-firefox-register-actor (jss-firefox-actor-connection ConsoleActor)
+                                                            (apply 'make-instance
+                                                                   class
+                                                                   :console console
+                                                                   make-instance-args))))
       (jss-firefox-event-type-ecase (event)
         ("networkEvent"
          (jss-with-alist-values (eventActor) event
@@ -671,7 +675,7 @@
                                        :url url
                                        :lifecycle (list (list :sent (jss-js-time-to-emacs-time startedDateTime))))))
                (setf (jss-tab-get-io tab (get-actor-id 'eventActor)) io)
-               (jss-console-insert-request console io)))))
+               (jss-console-insert-io console io)))))
         ("pageError"
          (register-actor  'jss-firefox-PageError
                           :id (get-actor-id 'pageError)

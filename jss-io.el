@@ -17,6 +17,18 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
+(require 'eieio)
+(require 'cl)
+(require 'jss-browser-api)
+(require 'jss-io-pretty-printers)
+(require 'jss-http-repl)
+
+(defvar jss-io nil
+  "Dummy variable used to pass data to the function jss-io-mode.")
+
+(make-variable-buffer-local
+ (defvar jss-current-io-object))
+
 (define-derived-mode jss-io-mode jss-super-mode "JSS IO"
   "Major mode for viewing network transactions (HTTP
 request-response pairs) between the browser and the server(s).
@@ -73,7 +85,7 @@ raw] button to show the actual bytes sent back from the server."
        (jss-wrap-with-text-properties `(jss-request-data t)
          (insert (jss-io-request-data jss-io)))
        (insert "\n"))
-     :initially-visibile (< (length (jss-io-request-data io)) (window-width (get-buffer-window (current-buffer))))))
+     :initially-visibile (< (length (jss-io-request-data jss-io)) (window-width (get-buffer-window (current-buffer))))))
   
   (when (jss-io-response-status jss-io)
     (jss-toggling-visibility
@@ -108,9 +120,6 @@ raw] button to show the actual bytes sent back from the server."
 
   (read-only-mode 1)
   (goto-char (point-min)))
-
-(make-variable-buffer-local
- (defvar jss-current-io-object))
 
 (defun jss-current-io () jss-current-io-object)
 

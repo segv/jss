@@ -17,6 +17,10 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
+(require 'eieio)
+(require 'cl)
+(require 'jss-browser-api)
+
 (defgeneric jss-insert-remote-value (value)
   "Insert a link in an emacs buffer to a browser side object.
 
@@ -61,10 +65,10 @@ cause some buffer flicker due to the asynchronous-ness of it.")
       (jss-remote-value-insert-description value))
     (jss-add-text-button start (point) 'jss-remote-value-expand-at-point)))
 
+(defvar jss-remote-value-auto-expand-property-limit 6)
+
 (defmethod jss-insert-remote-value :after ((value jss-generic-remote-object))
   (jss-autoexpand-small-remote-object value jss-remote-value-auto-expand-property-limit))
-
-(defvar jss-remote-value-auto-expand-property-limit 6)
 
 (defmethod jss-autoexpand-small-remote-object ((object jss-generic-remote-object) max-property-length)
   (when max-property-length
@@ -124,6 +128,9 @@ sets `value` as non-collapsed)."
        (lambda (properties)
          (jss-remote-value-replace-with-properties value properties buffer))))))
 
+(defvar jss-remote-value-left-column 0
+  "Leftmost column to use when indenting remote values.")
+
 (defun jss-remote-value-insert-as-object-properties (alist separator identp)
   "Insert the list of properties `alist` into the current buffer
 and put `separator` between each name/value pair. If `identp` is
@@ -132,7 +139,7 @@ value pair goes on the same line)"
   (loop for first = t then nil
         for (prop . more) on alist
         when identp
-          do (indent-to-column left-column)
+          do (indent-to-column jss-remote-value-left-column)
         do (jss-insert-with-highlighted-whitespace (car prop))
         do (insert ": ")
         do (jss-insert-remote-value (cdr prop))
@@ -147,7 +154,7 @@ properties in its place."
       (when (jss-remote-value-collapsed value) 
         (jss-replace-with-default-property
             (jss-remote-value value :test 'eq)
-          (let ((left-column (+ 2 (current-column)))
+          (let ((jss-remote-value-left-column (+ 2 (current-column)))
                 (jss-remote-value-auto-expand-property-limit
                  ;; resetting
                  ;; jss-remote-value-auto-expand-property-limit here

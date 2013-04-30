@@ -17,6 +17,17 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
+(require 'eieio)
+(require 'cl)
+(require 'jss-utils)
+(require 'jss-browser-api)
+
+(defvar jss-browser nil
+  "Dummy value used to pass an argumnet to the function jss-browser-mode.")
+
+(make-variable-buffer-local
+ (defvar jss-current-browser-instance nil))
+
 (define-derived-mode jss-browser-mode jss-super-mode "JSS Browser"
   "This is mode used by buffers created with jss-connect. It serves,
 mainly, to list the tabs in the browser that can be debugged.
@@ -53,9 +64,6 @@ arguments."
     (jss-browser-mode)))
 
 (define-key jss-browser-mode-map (kbd "g") 'jss-browser-mode-refresh)
-
-(make-variable-buffer-local
- (defvar jss-current-browser-instance nil))
 
 (defun jss-current-browser ()
   jss-current-browser-instance)

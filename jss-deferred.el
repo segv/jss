@@ -17,6 +17,9 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
+(require 'cl)
+(require 'eieio)
+
 (defclass jss-deferred ()
   ((callbacks :initarg :callbacks :accessor jss-deferred-callbacks)
    (errorbacks :initarg :errorbacks :accessor jss-deferred-errorbacks)
