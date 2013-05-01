@@ -26,6 +26,7 @@
  (defvar jss-http-repl-status nil
    "The current status of the server connection (:opening, :sending, :receiving-headers, :receiving-data, :idle or :closed)"))
 
+;;;###autoload
 (define-derived-mode jss-http-repl-mode jss-super-mode "JSS HTTP REPL"
   "Major mode for manually creating, editing and submitting HTTP requests.
 
@@ -150,6 +151,7 @@ but it can be used with any kind of HTTP request."
       (jss-http-repl-goto-data-start))
     (current-buffer)))
 
+;;;###autoload
 (defun jss-http-repl (&optional initial-endpoint)
   (interactive)
   (switch-to-buffer (jss-http-repl-new :method "GET" :url initial-endpoint)))

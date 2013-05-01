@@ -183,6 +183,7 @@ objects they need, and the default connection parameters."))
 
 (defvar jss-connect/select-browser-history '())
 
+;;;###autoload
 (defun* jss-connect (browser-label &key host port)
   "Query the user for a browser type, a host, and a port, and
 jump to its browser buffer."
