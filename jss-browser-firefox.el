@@ -313,7 +313,7 @@
     (delete-process proc)
     (kill-buffer (process-buffer proc))
 
-    (jss-deferred-callback close-deferred connection)
+    (jss-deferred-callback close-deferred conn)
     (slot-makeunbound conn 'close-deferred)))
 
 (defmethod jss-firefox-register-actor ((connection jss-firefox-connection) actor)
