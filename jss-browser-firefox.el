@@ -94,6 +94,7 @@
 ;;; 
 ;;;   must follow aTabActor.attach (i think)
 
+(require 'cl)
 (require 'eieio)
 (require 'json)
 (require 'jss-browser-api)
@@ -114,7 +115,7 @@
     (jss-firefox-connection-disconnect (jss-firefox-browser-connection browser))))
 
 (defmethod jss-browser-find-tab ((browser jss-firefox-browser) tab-id)
-  (find tab-id (slot-value browser 'tabs) :key 'jss-tab-id :test 'string=))
+  (cl-find tab-id (slot-value browser 'tabs) :key 'jss-tab-id :test 'string=))
 
 (defmethod jss-browser-tabs ((browser jss-firefox-browser))
   (slot-value browser 'tabs))
@@ -313,7 +314,7 @@
     (delete-process proc)
     (kill-buffer (process-buffer proc))
 
-    (jss-deferred-callback close-deferred connection)
+    (jss-deferred-callback close-deferred conn)
     (slot-makeunbound conn 'close-deferred)))
 
 (defmethod jss-firefox-register-actor ((connection jss-firefox-connection) actor)
@@ -346,8 +347,8 @@
   (error "Actor %s has no handle-event method (got event %s)." actor event-json))
 
 (defmacro* jss-firefox-event-type-ecase ((event &key (key ''type)) &rest clauses)
-  (let ((e (gensym))
-        (k (gensym)))
+  (let ((e (cl-gensym))
+        (k (cl-gensym)))
     `(let ((,e ,event)
            (,k ,key))
        (cond

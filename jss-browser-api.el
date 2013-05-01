@@ -17,7 +17,8 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
-(require 'cl)
+(eval-when-compile
+  (require 'cl))
 (require 'eieio)
 (require 'jss-utils)
 (require 'jss-deferred)
@@ -455,7 +456,7 @@ started.")
 changes to the global or local state that have been made. If this
 is not possible signal an error.")
 
-(eval-when (compile load)
+(eval-when (compile load eval)
   (defvar jss-remote-value-counter 0))
 
 (defclass jss-generic-remote-value ()

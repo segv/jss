@@ -17,8 +17,8 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
-(require 'eieio)
 (require 'cl)
+(require 'eieio)
 (require 'jss-utils)
 (require 'jss-browser-api)
 
@@ -183,6 +183,7 @@ objects they need, and the default connection parameters."))
 
 (defvar jss-connect/select-browser-history '())
 
+;;;###autoload
 (defun* jss-connect (browser-label &key host port)
   "Query the user for a browser type, a host, and a port, and
 jump to its browser buffer."
@@ -195,7 +196,7 @@ jump to its browser buffer."
                                         t
                                         (first jss-connect/select-browser-history)
                                         'jss-connect/select-browser-history))))
-  (let ((browser-spec (find browser-label jss-browsers :key 'jss-browser-spec-label :test 'string=)))
+  (let ((browser-spec (cl-find browser-label jss-browsers :key 'jss-browser-spec-label :test 'string=)))
     (assert browser-spec nil "Unable to find browser named %s" browser-spec)
     (let ((host (or host (read-from-minibuffer "Host: " (jss-browser-spec-default-host browser-spec))))
           (port (or port (read-from-minibuffer "Port: " (jss-browser-spec-default-port browser-spec)))))

@@ -17,8 +17,8 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
-(require 'eieio)
 (require 'cl)
+(require 'eieio)
 (require 'jss-browser-api)
 
 (defgeneric jss-insert-remote-value (value)

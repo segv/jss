@@ -24,7 +24,7 @@
 
 (defmacro* define-jss-io-cleaner (content-type (data) &body body)
   (declare (indent 2))
-  (let ((type (gensym)))
+  (let ((type (cl-gensym)))
     `(let ((,type ',content-type))
        (dolist (type (if (listp ,type) ,type (list ,type)))
          (setf (gethash type jss-io-cleaners) (lambda (,data) ,@body)))
