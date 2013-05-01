@@ -20,8 +20,9 @@
 ;;; the jss prompt is designed so that it can be embedded in multiple
 ;;; places (the console buffer and the debugger for now).
 
+(eval-when-compile
+  (require 'cl))
 (require 'eieio)
-(require 'cl)
 (require 'jss-browser-api)
 (require 'jss-remote-value)
 

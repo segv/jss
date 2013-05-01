@@ -281,7 +281,7 @@ block, move point to where the block was, run `body` and then add
 the text property `property-name` with value `property-value`
 back (from the old start to where `body` left point)"
   (declare (indent 1))
-  (let ((loc (gensym)) (prop-val (gensym)))
+  (let ((loc (cl-gensym)) (prop-val (cl-gensym)))
     `(let* ((,prop-val ,property-value)
             (,loc (jss-find-property-block ',property-name ,prop-val :test ,test))
             (inhibit-read-only t))
@@ -297,7 +297,7 @@ back (from the old start to where `body` left point)"
 
 (defmacro jss-wrap-with-text-properties (properties &rest body)
   (declare (indent 1))
-  (let ((start (gensym)))
+  (let ((start (cl-gensym)))
     `(let ((,start (point)))
        (prog1
            (progn ,@body)
@@ -424,7 +424,7 @@ on the variable ido-mode."
          (string-to-number string))))
 
 (defmacro* jss-with-alist-values ((&rest keys) alist-form &body body)
-  (let ((alist-value (gensym)))
+  (let ((alist-value (cl-gensym)))
     `(let ((,alist-value ,alist-form))
        (let ,(mapcar (lambda (key)
                        (list key `(cdr (assoc ',key ,alist-value))))

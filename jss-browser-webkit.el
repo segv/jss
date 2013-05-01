@@ -20,6 +20,7 @@
 ;;; https://developers.google.com/chrome-developer-tools/docs/protocol/1.0/debugger#events
 ;;; http://trac.webkit.org/browser/trunk/Source/WebCore/inspector/Inspector.json
 
+(require 'cl)
 (require 'url)
 (require 'websocket)
 (require 'json)
@@ -59,8 +60,8 @@
      (jss-webkit-remote-debugging-url browser)
      (lambda (status)
        (if status
-           (if (getf status :error)
-               (jss-deferred-errorback d (getf status :error))
+           (if (cl-getf status :error)
+               (jss-deferred-errorback d (cl-getf status :error))
              (jss-deferred-errorback d (format "Unrecognized error: %s" (prin1-to-string status))))
          (progn
            (widen)
@@ -299,9 +300,6 @@
                            (console (jss-tab-console tab)))
                ,@body)))))
 
-(eval-when (compile load)
-  (defvar jss-debugger-object-group-count 0))
-
 (defmethod jss-evaluate ((tab jss-webkit-tab) js-code)
   (jss-deferred-then
    (jss-webkit-send-request tab
@@ -313,6 +311,9 @@
      (make-jss-webkit-remote-object (cdr (assoc 'result result))))
    (lambda (response)
      (make-jss-webkit-evaluation-error response))))
+
+(eval-when (compile load)
+  (defvar jss-debugger-object-group-count 0))
 
 (defclass jss-webkit-debugger (jss-generic-debugger)
   ((object-group-id :initform (incf jss-debugger-object-group-count))

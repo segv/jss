@@ -17,8 +17,8 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
+(eval-when-compile (require 'cl))
 (require 'eieio)
-(require 'cl)
 (require 'jss-prompt)
 (require 'jss-browser-api)
 (require 'jss-browser)
@@ -211,7 +211,7 @@ inserted text."
          else do (push (car head) format-args)
          finally (setf format-args (reverse format-args)))
       (setf format-args format-args-and-properties))
-    (unless (getf 'face properties)
+    (unless (cl-getf 'face properties)
       (setf properties (list* 'face (jss-console-level-face level) properties)))
     (with-current-buffer (jss-console-buffer console)
       (save-excursion
@@ -220,7 +220,7 @@ inserted text."
               (inhibit-read-only t))
           (insert (jss-console-level-label level)) 
           (insert (apply 'format format-string format-args) "\n")
-          (unless (getf properties 'read-only)
+          (unless (cl-getf properties 'read-only)
             (setf properties (list* 'read-only t properties)))
           (add-text-properties start (point) properties))))))
 

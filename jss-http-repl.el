@@ -595,7 +595,7 @@ simple insert is enough to insert a new header) and returns nil"
     (unless endpoint
       (error "Missing endpoint data, don't where to send request."))
 
-    (when (string= "POST" (getf endpoint :method))
+    (when (string= "POST" (cl-getf endpoint :method))
 
       (unless (jss-http-repl-header-value "Content-Type")
         (when (jss-yes-or-no-p "No Content-Type header found. Do you want to add one? ")
@@ -644,7 +644,7 @@ simple insert is enough to insert a new header) and returns nil"
                                     'jss-http-repl-Request-Line t))
       (add-text-properties request-start (point-max) (list 'read-only t))
       
-      (list* :ssl (string= "https" (getf endpoint :schema))
+      (list* :ssl (string= "https" (cl-getf endpoint :schema))
              :header-string header-string
              :data-string data-string
              :data-bytes data-bytes

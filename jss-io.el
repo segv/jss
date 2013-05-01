@@ -17,8 +17,9 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
+(eval-when-compile
+  (require 'cl))
 (require 'eieio)
-(require 'cl)
 (require 'jss-browser-api)
 (require 'jss-io-pretty-printers)
 (require 'jss-http-repl)
