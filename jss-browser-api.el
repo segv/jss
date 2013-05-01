@@ -455,7 +455,7 @@ started.")
 changes to the global or local state that have been made. If this
 is not possible signal an error.")
 
-(eval-when (compile load)
+(eval-when (compile load eval)
   (defvar jss-remote-value-counter 0))
 
 (defclass jss-generic-remote-value ()
