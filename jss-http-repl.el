@@ -670,20 +670,6 @@ simple insert is enough to insert a new header) and returns nil"
                           :sentinel 'jss-http-repl-process-sentinel
                           :buffer (current-buffer))))
 
-(defun jss-http-repl-process-sentinel (proc status)
-  (with-current-buffer (process-buffer proc)
-    (cond
-     ((string= "open\n" status)
-      (jss-http-repl-process-send-data proc))
-     ((cl-member status '("connection broken by remote peer\n" "deleted\n") :test 'string=)
-      (message "Connection closed.")
-      (setf jss-http-repl-status :closed
-            jss-http-repl-keep-alive nil)
-      (when (memq jss-http-repl-status '(:receiving-headers :receiving-data))
-        (jss-http-repl-insert-next-request)))
-     (t
-      (message "%s got unknown sentinel status %s." proc status)))))
-
 (defun jss-http-repl-process-send-data (proc)
   (goto-char (point-max))
   (let ((inhibit-read-only t))
@@ -700,6 +686,20 @@ simple insert is enough to insert a new header) and returns nil"
     (when data-bytes
       (process-send-string proc data-bytes))
     (setf jss-http-repl-status :receiving-headers)))
+
+(defun jss-http-repl-process-sentinel (proc status)
+  (with-current-buffer (process-buffer proc)
+    (cond
+     ((string= "open\n" status)
+      (jss-http-repl-process-send-data proc))
+     ((cl-member status '("connection broken by remote peer\n" "deleted\n") :test 'string=)
+      (message "Connection closed.")
+      (setf jss-http-repl-status :closed
+            jss-http-repl-keep-alive nil)
+      (when (memq jss-http-repl-status '(:receiving-headers :receiving-data))
+        (jss-http-repl-insert-next-request)))
+     (t
+      (message "%s got unknown sentinel status %s." proc status)))))
 
 (defun jss-http-repl-insert-next-request ()
   (let ((inhibit-read-only t))
