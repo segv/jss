@@ -1,7 +1,12 @@
-;;; jss.el -- top file for jsSlime, just loads the various .el files in the right order
-;;
+;;; jss.el --- emacs interface to webkit/firefox debuggers
+
 ;; Copyright (C) 2013 Edward Marco Baringer
-;;
+
+;; Author: Marco Baringer <mb@bese.it>
+;; Version: 0.7
+;; Keywords: languages
+;; Package-Requires: ((emacs "24.1") (websocket "0"))
+
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
 ;; published by the Free Software Foundation; either version 2 of
@@ -16,6 +21,16 @@
 ;; License along with this program; if not, write to the Free
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
+
+;;; Commentary:
+
+;; An emacs implementation of the client side protocol of webkit and
+;; firefox's over-the-wire debugging protocols.
+
+;; This is just the top file for jsSlime. It simply loads the various
+;; .el files in the right order
+
+;;; Code:
 
 (require 'jss-browser-api)
 (require 'jss-script)
@@ -33,3 +48,5 @@
 (require 'jss-http-repl)
 
 (provide 'jss)
+
+;;; jss.el ends here
