@@ -5,7 +5,7 @@
 ;; Author: Marco Baringer <mb@bese.it>
 ;; Version: 0.7
 ;; Keywords: languages
-;; Package-Requires: ((emacs "24.1") (websocket "0"))
+;; Package-Requires: ((emacs "24.1") (websocket "0") (js2-mode "0"))
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
