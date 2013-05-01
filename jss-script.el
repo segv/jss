@@ -17,6 +17,11 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
+(require 'eieio)
+(require 'cl)
+(require 'jss-browser-api)
+(require 'url)
+
 (defvar jss-script-source-original-location-functions '()
   "A list of functions which, given a url, a line number and a
 column number, return a file name, that emacs can find-file on,
@@ -70,6 +75,9 @@ jss-script-source-original-location-functions."
                 (message "File name: %s" file-name)
                 (return file-name)))))))))
 
+(make-variable-buffer-local
+ (defvar jss-current-script nil))
+
 (defun jss-script-mode* (script)
   (let ((jss-script script))
     (add-hook 'kill-buffer-hook 'jss-script-kill nil t)
@@ -119,7 +127,8 @@ jss-script-source-original-location-functions."
              (jss-script-goto-offset script line-number column-number))))))))
 
 (defface jss-script-line-marker-face '((t :inherit highlight))
-  "Face used to highlight the area around point.")
+  "Face used to highlight the area around point."
+  :group 'jss)
 
 (defmethod jss-script-goto-offset ((script jss-generic-script) line-number column-number)
   "Ensure that the point ot line `line-number` and column

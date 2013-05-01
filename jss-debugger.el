@@ -17,6 +17,25 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
+(require 'eieio)
+(require 'jss-browser-api)
+(require 'jss-remote-value)
+(require 'url)
+(require 'jss-console)
+(require 'jss-prompt)
+
+(defvar jss-debugger nil
+  "Dummy variable used to pass the debugger to the function jss-debugger-mode.")
+
+(make-variable-buffer-local
+ (defvar jss-current-debugger-instance))
+
+(defun jss-current-debugger ()
+  jss-current-debugger-instance)
+
+(make-variable-buffer-local
+ (defvar jss-debugger-num-frames nil))
+
 (define-derived-mode jss-debugger-mode jss-super-mode "JSS Debugger"
   "The jss-debugger serves to signal exceptions, provide any
 neccessary context and give the tools required to debug the
@@ -85,13 +104,7 @@ the current frame's top line."
     [ "Jump to Exception" jss-frame-goto-exception t]
     [ "Jump to Frame Source" jss-frame-goto-source :active (get-text-property (point) 'jss-frame) ]))
 
-(make-variable-buffer-local
- (defvar jss-current-debugger-instance))
-
-(defun jss-current-debugger ()
-  jss-current-debugger-instance)
-
-(defun jss-debugger-mode* (dbg)
+(defmethod jss-debugger-mode* ((dbg jss-generic-debugger))
   (let ((jss-debugger dbg))
     (jss-debugger-mode)))
 
@@ -109,9 +122,6 @@ the current frame's top line."
 (define-key jss-debugger-mode-map (kbd "i") 'jss-debugger-stepper-step-into)
 (define-key jss-debugger-mode-map (kbd "v") 'jss-debugger-stepper-step-over)
 (define-key jss-debugger-mode-map (kbd "o") 'jss-debugger-stepper-step-out)
-
-(make-variable-buffer-local
- (defvar jss-debugger-num-frames nil))
 
 (defvar jss-debugger-resume-points '())
 
@@ -150,7 +160,8 @@ that jss-debugger-resume-point can test for it)"
 
 (defcustom jss-debugger-auto-resume-functions '()
   "List of functions to call on a new exception, if any of them
-  return true the exception is automatically resumed.")
+  return true the exception is automatically resumed."
+  :group 'jss)
 
 ;(pushnew 'jss-is-jquery-exception jss-ignorable-exception-functions)
 ;(pushnew 'jss-is-3rd-party-exception jss-ignorable-exception-functions)
@@ -313,13 +324,10 @@ code."
       (destructuring-bind (start . end)
           (jss-find-property-block 'jss-frame frame :test 'eq)
         (goto-char start)
-        ;; note that jss-start-of-next-property-block moves point to the start and returns it
-        (setf frame-label-start (jss-start-of-next-property-block 'jss-frame-label))
-        (setf frame-label-end   (jss-end-of-current-property-block 'jss-frame-label))
         (list frame
               :start start :end end
-              :frame-label-start frame-label-start
-              :frame-label-end   frame-label-end))))) 
+              :frame-label-start (save-excursion (jss-start-of-next-property-block 'jss-frame-label))
+              :frame-label-end   (save-excursion (jss-end-of-current-property-block 'jss-frame-label))))))) 
 
 (defmacro* with-frame-at-point ((frame &rest location-args) &body body)
   (declare (indent 1))

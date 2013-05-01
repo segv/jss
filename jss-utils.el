@@ -17,8 +17,12 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
+(require 'cl)
+(require 'eieio)
+
 (defface jss-button-face '((t :underline t))
-  "Face used for jss-buttons.")
+  "Face used for jss-buttons."
+  :group 'jss)
 
 (defvar jss-button-map (let ((map (make-sparse-keymap)))
                          (define-key map (kbd "RET") 'jss-invoke-primary-action)
@@ -119,7 +123,8 @@ from `start` to `end`."
       (goto-char (point-max)))))
 
 (defface jss-whitespace-mark-face '((t :inherit font-lock-comment-face))
-  "Face user to mark significant whitespace.")
+  "Face user to mark significant whitespace."
+  :group 'jss)
 
 (defun jss-insert-as-whitespace (string)
   (jss-wrap-with-text-properties (list 'face 'jss-whitespace-mark-face)
@@ -380,14 +385,6 @@ back (from the old start to where `body` left point)"
         (jss-add-text-button (overlay-start button-b-overlay)
                              (overlay-end button-b-overlay)
                              toggle-function)))))
-
-(defun jss-toggle-text-visibility (body-overlay)
-  (interactive)
-  (overlay-put body-overlay 'invisible
-               (not (overlay-get body-overlay 'invisible)))
-  (overlay-put body-overlay 'before-string
-               (when (overlay-get body-overlay 'invisible)
-                 "...\n")))
 
 (defun* jss-completing-read (prompt choices
                              &key (history nil) (require-match t)

@@ -17,19 +17,11 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
-(require 'jss-browser-api)
-(require 'jss-script)
-(require 'jss-remote-value)
-(require 'jss-browser-webkit)
-(require 'jss-browser-firefox)
-(require 'jss-browser)
-(require 'jss-prompt)
-(require 'jss-console)
-(require 'jss-io-pretty-printers)
-(require 'jss-io)
-(require 'jss-debugger)
+(define-derived-mode jss-super-mode text-mode "Generic JSS Mode"
+  "Functionality common to all JSS modes."
+  t)
 
-(require 'jss-super-mode)
-(require 'jss-http-repl)
+(define-key jss-super-mode-map (kbd "TAB") 'jss-next-button)
+(define-key jss-super-mode-map (kbd "<backtab>") 'jss-previous-button)
 
-(provide 'jss)
+(provide 'jss-super-mode)

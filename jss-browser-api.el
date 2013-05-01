@@ -17,6 +17,12 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
+(require 'cl)
+(require 'eieio)
+(require 'jss-utils)
+(require 'jss-deferred)
+(require 'jss-super-mode)
+
 (defclass jss-generic-browser ()
   ((host :initarg :host :accessor jss-browser-host)
    (port :initarg :port :accessor jss-browser-port)
@@ -86,17 +92,16 @@ that they are globally unique.")
    "The current tab that should be used if we need to interact
 with the browser."))
 
-(defun jss-current-tab ()
-  (or jss-current-tab-instance
-      (if (jss-current-console)
-          (jss-console-tab (jss-current-console))
-        nil)))
-
 (defgeneric jss-tab-available-p (tab)
   "Returns T if `tab' can be debugged, which means we'll try to
 attach a console to it, returns NIL otherwise (which usually, but
 not always, means there's already an in-browser debugger attached
 to `tab`.")
+
+(defgeneric jss-tab-id (tab)
+  "Returns a globally unique identifier for the object `tab`. The
+returned value will be compared to other tabs with equal and
+never be used within the same emacs session.")
 
 (defgeneric jss-tab-title (tab)
   "Returns the current title (a string) of the tab. Used to
@@ -126,6 +131,9 @@ jss-tab-connected-p will return nil)")
   "Creates a connection to `tab`, returns a deferred object which
 will complete when the connection has been established.")
 
+(defgeneric jss-tab-reload (tab)
+  "Tell the browser to reload the contents of `tab`.")
+
 (defgeneric jss-tab-make-console (tab &rest initargs)
   "Creates a console instance for `tab`, passing make-instance
 `initargs`. This method is basically a factory for browsers
@@ -143,6 +151,11 @@ with id `object-id` in the current context of `tab`.
 
 The keys of the plist are strings (simple elisp strings) and the
 values are remote object instances (both primitive and non).")
+
+(defgeneric jss-tab-ensure-console (tab)
+  "If `tab` doesn't already have a console object, then create it (and initialize its buffer).
+
+Either way, returns `tabs`'s console.")
 
 (defclass jss-generic-script ()
   ((tab :initarg :tab :accessor jss-script-tab)
@@ -218,6 +231,23 @@ state of a specific web page."))
 (defun jss-current-console ()
   jss-current-console-instance)
 
+(defun jss-current-tab ()
+  (or jss-current-tab-instance
+      (if (jss-current-console)
+          (jss-console-tab (jss-current-console))
+        nil)))
+
+(defgeneric jss-console-mode* (console)
+  "Initialize the current buffer with `console`.")
+
+(defmethod jss-tab-ensure-console ((tab jss-generic-tab))
+  (or (jss-tab-console tab)
+      (let ((console (jss-tab-make-console tab :tab tab)))
+        (setf (jss-tab-console tab) console)
+        (with-current-buffer (jss-console-buffer console)
+          (jss-console-mode* console))
+        console)))
+
 (defgeneric jss-console-clear (console)
   "Clears, removes from the buffer and releases stored memory,
 all the objects (log messages, network io and evaluation
@@ -243,6 +273,22 @@ been closed.")
 
 (defgeneric jss-console-insert-io (console io)
   "Insert into `console`'s log a link to the network io `io`")
+
+(defgeneric jss-console-update-io (console io)
+  "Find the line in the current buffer (a console buffer)
+corresponding to `io` and replace it with a line describing the
+current state of `io`.")
+
+(defgeneric jss-console-insert-message-objects (console level objects)
+  "Given a list of remote objects, such as those passed to jss by
+the browser when code calls window.console.log, insert the
+corresponding remote-value objects into the current buffer using
+the face and label corresponding to `level`.")
+
+(defgeneric jss-console-debug-message (console format-control &rest format-args))
+(defgeneric jss-console-log-message   (console format-control &rest format-args))
+(defgeneric jss-console-warn-message  (console format-control &rest format-args))
+(defgeneric jss-console-error-message (console format-control &rest format-args))
 
 (defclass jss-generic-io ()
   ((tab :accessor jss-io-tab :initform nil)
@@ -302,6 +348,9 @@ that we're still waiting for the response.")
   "the length, in bytes (not characters) of data recevied by
 `io`")
 
+(defgeneric jss-io-response-data (io)
+  "The data, as a string (without encoding).")
+
 (defgeneric jss-tab-get-io (tab io-id)
   "returns the IO object in `tab` whose id is `io-id` (which is a
 value as returned by `jss-io-id`")
@@ -324,6 +373,9 @@ value as returned by `jss-io-id`")
    (tab    :accessor jss-debugger-tab :initarg :tab))
   (:documentation "Represents some exception, and its state, on
 the browser. "))
+
+(defgeneric jss-debugger-mode* (debugger)
+  "Initializes the buffer for the debugger `debugger`.")
 
 (defgeneric jss-debugger-stack-frames (debugger)
   "Returns a list, in order from bottom (closest to the
@@ -372,6 +424,12 @@ instance `tab` and the debugger obejct `debugged`.")
 (defmethod jss-debugger-cleanup ((debugger jss-generic-debugger))
   t)
 
+(defgeneric jss-tab-set-debugger-sensitivity (tab sensitivity)
+  "Set the break level of `tab`'s debugger to `sensitivity` (:all, :uncaught or :never)")
+
+(defgeneric jss-debugger-insert-message (debugger)
+  "Insert, at the current point, text describing why `debugger` has been opened (the ecxeption, the source location, etc.).")
+
 (defclass jss-generic-stack-frame ()
   ((debugger :initarg :debugger :accessor jss-frame-debugger))
   (:documentation "Represents one stack frame, a function/method
@@ -397,7 +455,8 @@ started.")
 changes to the global or local state that have been made. If this
 is not possible signal an error.")
 
-(defvar jss-remote-value-counter 0)
+(eval-when (compile load)
+  (defvar jss-remote-value-counter 0))
 
 (defclass jss-generic-remote-value ()
   ((id :accessor jss-remote-value-id

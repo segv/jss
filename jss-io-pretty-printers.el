@@ -17,6 +17,9 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
+(require 'cl)
+(require 'json)
+
 (defvar jss-io-cleaners (make-hash-table :test 'equal))
 
 (defmacro* define-jss-io-cleaner (content-type (data) &body body)
@@ -50,7 +53,7 @@
 (define-jss-io-cleaner ("application/json") (json)
   (let (parsed)
     (with-temp-buffer
-      (insert (jss-io-response-data io))
+      (insert json)
       (goto-char (point-min))
       (setf parsed (json-read)))
     (pp-to-string parsed)))

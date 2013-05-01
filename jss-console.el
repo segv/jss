@@ -17,6 +17,17 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
+(require 'eieio)
+(require 'cl)
+(require 'jss-prompt)
+(require 'jss-browser-api)
+(require 'jss-browser)
+(require 'jss-remote-value)
+(require 'jss-io)
+
+(defvar jss-console nil
+  "Dummy variable used to pass a console to the function jss-console-mode")
+
 (define-derived-mode jss-console-mode jss-super-mode "JSS Console"
   "A jss console buffer serves two purposes:
 
@@ -82,15 +93,19 @@ expand objects while moving around the buffer."
 (define-key jss-console-mode-map (kbd "C-c C-i") 'jss-expand-nearest-remote-value)
 
 (defface jss-console-debug-message '((t :inherit font-lock-comment-face))
-  "Face for JSS debug messages")
+  "Face for JSS debug messages"
+  :group 'jss)
 (defface jss-console-log-message   '((t :inherit font-lock-doc-face))
-  "Face for JSS log messages")
+  "Face for JSS log messages"
+  :group 'jss)
 (defface jss-console-warn-message  '((t :inherit font-lock-other-emphasized-face))
-  "Face for JSS warning messages")
+  "Face for JSS warning messages"
+  :group 'jss)
 (defface jss-console-error-message '((t :inherit font-lock-warning-face))
-  "Face for JSS error messages")
+  "Face for JSS error messages"
+  :group 'jss)
 
-(defun jss-console-mode* (console)
+(defmethod jss-console-mode* ((console jss-generic-console))
   (let ((jss-console console))
     (jss-console-mode)))
 
@@ -108,17 +123,6 @@ expand objects while moving around the buffer."
   (switch-to-buffer
    (jss-console-buffer
     (jss-tab-ensure-console tab))))
-
-(defmethod jss-tab-ensure-console ((tab jss-generic-tab))
-  "If `tab` doesn't already have a console object, then create it (and initialize its buffer).
-
-Either way, returns `tabs`'s console."
-  (or (jss-tab-console tab)
-      (let ((console (jss-tab-make-console tab :tab tab)))
-        (setf (jss-tab-console tab) console)
-        (with-current-buffer (jss-console-buffer console)
-          (jss-console-mode* console))
-        console)))
 
 (defun jss-console-ensure-connection ()
   "Return a deferred which will complete when the connection to
@@ -221,10 +225,6 @@ inserted text."
           (add-text-properties start (point) properties))))))
 
 (defmethod jss-console-insert-message-objects ((console jss-generic-console) level objects)
-  "Given a list of remote objects, such as those passed to jss by
-the browser when code calls window.console.log, insert the
-corresponding remote-value objects into the current buffer using
-the face and label corresponding to `level`."
   (save-excursion
     (with-current-buffer (jss-console-buffer console)
       (let ((inhibit-read-only t))
@@ -302,14 +302,12 @@ buffer) describing the current state of `io`."
                           (jss-lifecycle-event-to-string last-what)
                           " (Elapsed " (format "%0.3fms" (- last-when.ms start-time.ms)) ")\n"))))))))))
 
-(defmethod jss-console-insert-request ((console jss-generic-console) io)
+(defmethod jss-console-insert-io ((console jss-generic-console) io)
   "Insert a line in the buffer describing IO (and this should be the first time we've gotten an event related to IO."
   (jss-console-insert-io-line console io))
 
-(defmethod jss-console-update-request-message ((console jss-generic-console) io)
-  "Find the line in the current buffer (a console buffer)
-corrsepdongin to `io` and replace it with a line describing the
-current state of `io`."
+(defmethod jss-console-update-io ((console jss-generic-console) io)
+
   (with-current-buffer (jss-console-buffer console)
     (jss-delete-property-block 'jss-io-id (jss-io-id io) :error nil)
     (jss-console-insert-io-line console io)))

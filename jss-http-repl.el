@@ -17,6 +17,15 @@
 ;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 ;; MA 02111-1307 USA
 
+(require 'cl)
+(require 'url)
+(require 'jss-utils)
+(require 'jss-super-mode)
+
+(make-variable-buffer-local
+ (defvar jss-http-repl-status nil
+   "The current status of the server connection (:opening, :sending, :receiving-headers, :receiving-data, :idle or :closed)"))
+
 (define-derived-mode jss-http-repl-mode jss-super-mode "JSS HTTP REPL"
   "Major mode for manually creating, editing and submitting HTTP requests.
 
@@ -107,15 +116,15 @@ but it can be used with any kind of HTTP request."
  (defvar jss-http-repl-previous-request-data nil))
 
 (make-variable-buffer-local
- (defvar jss-http-repl-status nil
-   "The current status of the server connection (:opening, :sending, :receiving-headers, :receiving-data, :idle or :closed)"))
-
-(make-variable-buffer-local
  (defvar jss-http-repl-keep-alive nil
    "When T the current server connection should be reused."))
 
 (make-variable-buffer-local
  (defvar jss-http-repl-content-length nil
+   "The number of bytes of body data we're expecting."))
+
+(make-variable-buffer-local
+ (defvar jss-http-repl-response-data-start nil
    "The number of bytes of body data we're expecting."))
 
 (make-variable-buffer-local
@@ -125,11 +134,13 @@ but it can be used with any kind of HTTP request."
 (defface jss-http-repl-meta-data-face
   '((t :inherit font-lock-special-keyword-face))
   "Face used to mark 'meta' headers such as Endpoint:, --post
-  data starts here-- etc.")
+  data starts here-- etc."
+  :group 'jss)
 
 (defface jss-http-repl-submitted-face
   '((t :slant italic))
-  "Face used to mark data that has been sent and is no longer editable.")
+  "Face used to mark data that has been sent and is no longer editable."
+  :group 'jss)
 
 (defun* jss-http-repl-new (&rest insert-args)
   (with-current-buffer (generate-new-buffer "*JSS HTTP REPL*")
@@ -211,6 +222,31 @@ but it can be used with any kind of HTTP request."
         (return))
       (forward-char 1)))
   (point))
+
+(defvar jss-http-repl-request-header-editors
+  '("Accept" "Accept-Charset" "Accept-Encoding" "Accept-Language" "Accept-Datetime"
+    ("Authorization" . jss-http-repl-read-authorization)
+    ("Cache-Control" . jss-http-repl-read-cache-control)
+    "Connection"
+    "Cookie"
+    ("Content-Length" . jss-http-repl-read-content-length) "Content-MD5"
+    ("Content-Type" . jss-http-repl-read-content-type)
+    "Date"
+    "Expect"
+    "From"
+    "Host"
+    "If-Match" "If-Modified-Since" "If-None-Match" "If-Range" "If-Unmodified-Since"
+    "Max-Forwards"
+    "Pragma"
+    "Proxy-Authorization"
+    "Range"
+    "Referer"
+    "TE"
+    "Upgrade"
+    ("User-Agent" . jss-http-repl-choose-user-agent)
+    "Via"
+    "Warning"
+    "X-Requested-With"))
 
 (defun jss-http-repl-ensure-header ()
   "If there already is a header named `header-name` then simple
@@ -300,31 +336,6 @@ simple insert is enough to insert a new header) and returns nil"
           (while (and (not (eolp)) (looking-at "\\s-"))
             (forward-char 1)))
       (error "Not looking at the header %s." name))))
-
-(defvar jss-http-repl-request-header-editors
-  '("Accept" "Accept-Charset" "Accept-Encoding" "Accept-Language" "Accept-Datetime"
-    ("Authorization" . jss-http-repl-read-authorization)
-    ("Cache-Control" . jss-http-repl-read-cache-control)
-    "Connection"
-    "Cookie"
-    ("Content-Length" . jss-http-repl-read-content-length) "Content-MD5"
-    ("Content-Type" . jss-http-repl-read-content-type)
-    "Date"
-    "Expect"
-    "From"
-    "Host"
-    "If-Match" "If-Modified-Since" "If-None-Match" "If-Range" "If-Unmodified-Since"
-    "Max-Forwards"
-    "Pragma"
-    "Proxy-Authorization"
-    "Range"
-    "Referer"
-    "TE"
-    "Upgrade"
-    ("User-Agent" . jss-http-repl-choose-user-agent)
-    "Via"
-    "Warning"
-    "X-Requested-With"))
 
 (defun jss-http-repl-request-header-editor (header-name)
   (dolist (h jss-http-repl-request-header-editors)
@@ -661,7 +672,7 @@ simple insert is enough to insert a new header) and returns nil"
   (with-current-buffer (process-buffer proc)
     (cond
      ((string= "open\n" status)
-      (jss-http-repl-process-send-data))
+      (jss-http-repl-process-send-data proc))
      ((cl-member status '("connection broken by remote peer\n" "deleted\n") :test 'string=)
       (message "Connection closed.")
       (setf jss-http-repl-status :closed
@@ -671,7 +682,7 @@ simple insert is enough to insert a new header) and returns nil"
      (t
       (message "%s got unknown sentinel status %s." proc status)))))
 
-(defun jss-http-repl-process-send-data ()
+(defun jss-http-repl-process-send-data (proc)
   (goto-char (point-max))
   (let ((inhibit-read-only t))
     (jss-wrap-with-text-properties (list 'face 'jss-http-repl-meta-data-face

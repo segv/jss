@@ -20,6 +20,11 @@
 ;;; the jss prompt is designed so that it can be embedded in multiple
 ;;; places (the console buffer and the debugger for now).
 
+(require 'eieio)
+(require 'cl)
+(require 'jss-browser-api)
+(require 'jss-remote-value)
+
 (defvar jss-prompt-map
   (let ((map (make-sparse-keymap)))
     ;; (set-keymap-parent map jss)
@@ -184,7 +189,7 @@ Supply a prefix arg to force sending the current text"
              (if (fboundp 'js2-parse)
                  (with-temp-buffer
                    (insert (jss-prompt-input-text prompt))
-                   (js2-ast-root-errors (js2-parse)))
+                   (funcall 'js2-ast-root-errors (js2-parse)))
                ;; don't have js2-parse :( send the input and let the browser syntax check it
                '())))
         
@@ -192,7 +197,8 @@ Supply a prefix arg to force sending the current text"
             (progn
               (message "Input has errors: %s" js2-parse-errors)
               (insert-and-inherit "\n")
-              (js2-indent-line)
+              (when (fboundp 'js2-indent-line)
+                (funcall 'js2-indent-line))
               (return))
           (jss-prompt-submit prompt))))))
 

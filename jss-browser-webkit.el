@@ -22,6 +22,8 @@
 
 (require 'url)
 (require 'websocket)
+(require 'json)
+(require 'jss-browser-api)
 
 (defclass jss-webkit-browser (jss-generic-browser)
   ())
@@ -200,6 +202,7 @@
 
 (defun jss-webkit-enable-disable-monitor (tab domain component-name)
   (lexical-let* ((tab tab)
+                 (console (jss-tab-console tab))
                  (domain domain)
                  (component-name component-name))
     (jss-deferred-add-backs
@@ -225,6 +228,8 @@
         (jss-console-debug-message console "%s enabled." domain))
       (lambda (response)
         (jss-console-debug-message console "Could not enable %s: %s" domain response)))))
+
+(defvar jss-webkit-notification-handlers (make-hash-table :test 'equal))
 
 (defmethod jss-webkit-tab-websocket/on-message ((tab jss-webkit-tab) websocket frame)
   (jss-log-event (list :websocket
@@ -284,8 +289,6 @@
 (defmethod jss-webkit-tab-websocket/on-error ((tab jss-webkit-tab) websocket action error)
   (jss-log-event (list :websocket (jss-webkit-tab-debugger-url tab) :on-error websocket action error)))
 
-(defvar jss-webkit-notification-handlers (make-hash-table :test 'equal))
-
 (defmacro define-jss-webkit-notification-handler (name args &rest body)
   `(setf (gethash ,name jss-webkit-notification-handlers)
          (lambda (tab params message)
@@ -296,7 +299,8 @@
                            (console (jss-tab-console tab)))
                ,@body)))))
 
-(defvar jss-debugger-object-group-count 0)
+(eval-when (compile load)
+  (defvar jss-debugger-object-group-count 0))
 
 (defmethod jss-evaluate ((tab jss-webkit-tab) js-code)
   (jss-deferred-then
@@ -654,7 +658,7 @@
       (make-instance 'jss-generic-remote-no-value))))
 
 (defmethod jss-get-object-properties ((tab jss-webkit-tab) object-id)
-  (jss-deferred-then (jss-webkit-send-request (jss-console-tab console)
+  (jss-deferred-then (jss-webkit-send-request (jss-tab-console tab)
                                               (list "Runtime.getProperties"
                                                     (cons 'objectId object-id)
                                                     (cons 'ownProperties :json-false)))
@@ -766,7 +770,7 @@
                             :start-time time
                             :lifecycle (list (list :sent time)))))
     (setf (jss-tab-get-io tab requestId) io)
-    (jss-console-insert-request console io)))
+    (jss-console-insert-io console io)))
 
 (defun jss-nconc-item (list item)
   (setf (cdr (last list)) (list item)))
@@ -777,7 +781,7 @@
                     (list :data-received (seconds-to-time timestamp)
                           :data-length dataLength
                           :encoded-data-length encodedDataLength))
-    (jss-console-update-request-message console io)))
+    (jss-console-update-io console io)))
 
 (define-jss-webkit-notification-handler "Network.loadingFailed" (requestId timestamp errorText canceled)
   (with-existing-io (tab requestId)
@@ -785,7 +789,7 @@
                     (list :loading-failed (seconds-to-time timestamp)
                           :error-text errorText
                           :canceled canceled))
-    (jss-console-update-request-message console io)))
+    (jss-console-update-io console io)))
 
 (define-jss-webkit-notification-handler "Network.loadingFinished" (requestId timestamp)
   (with-existing-io (tab requestId)
@@ -800,12 +804,12 @@
         (lambda (response)
           ;; don't really know what else to do if this fails.
           (jss-log-event (list "Network.getResponseBody" :error requestId response)))))
-    (jss-console-update-request-message console io)))
+    (jss-console-update-io console io)))
 
 (define-jss-webkit-notification-handler "Network.requestServedFromCache" (requestId)
   (with-existing-io (tab requestId)
     (jss-nconc-item (jss-io-lifecycle io) (list :served-from-cache nil))
-    (jss-console-update-request-message console io)))
+    (jss-console-update-io console io)))
 
 (define-jss-webkit-notification-handler "Network.requestServedFromMemoryCache" (requestId loaderId documentURL timestamp initiator resource)
   (with-existing-io (tab requestId)
@@ -815,7 +819,7 @@
                           :document-url documentURL
                           :initiator initiator
                           :resource resource))
-    (jss-console-update-request-message console io)))
+    (jss-console-update-io console io)))
 
 (define-jss-webkit-notification-handler "Network.responseReceived" (requestId loaderId timestamp type response)
   (with-existing-io (tab requestId)
@@ -826,7 +830,7 @@
                           :response response))
     (setf (jss-webkit-io-response io) response)
     
-   (jss-console-update-request-message console io)))
+   (jss-console-update-io console io)))
 
 (define-jss-webkit-notification-handler "Page.loadEventFired" (timestamp)
   (jss-console-log-message console "page loaded"))
