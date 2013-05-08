@@ -312,7 +312,7 @@
    (lambda (response)
      (make-jss-webkit-evaluation-error response))))
 
-(eval-when (compile load)
+(eval-when (compile load eval)
   (defvar jss-debugger-object-group-count 0))
 
 (defclass jss-webkit-debugger (jss-generic-debugger)
